@@ -1,1 +1,6 @@
-.zed/
+.zed/*
+build/
+compile_commands.json
+.cache/
+
+!.zed/tasks.json
