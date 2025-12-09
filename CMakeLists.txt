@@ -8,6 +8,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(ENABLE_ASAN "Enable Address Sanitizer" OFF)
 option(ENABLE_TSAN "Enable Thread Sanitizer" OFF)
 option(BUILD_TESTS "Build Unit Tests" ON)
+option(ENABLE_CLANG_TIDY "Enable static analysis with Clang-Tidy" OFF)
 
 add_compile_options(-Wall -Wextra -Wpedantic -Werror)
 
@@ -66,4 +67,16 @@ target_include_directories(blank-chat-client PRIVATE client/include)
 if(BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
+endif()
+
+if(ENABLE_CLANG_TIDY)
+    find_program(CLANG_TIDY_EXE NAMES "clang-tidy" "clang-tidy-14" "clang-tidy-15")
+    if(CLANG_TIDY_EXE)
+        message(STATUS "Clang-Tidy found: ${CLANG_TIDY_EXE}")
+        # To ustawienie sprawia, że CMake "doklei" uruchomienie clang-tidy
+        # do kompilacji każdego pliku .cpp w projekcie.
+        set(CMAKE_CXX_CLANG_TIDY "${CLANG_TIDY_EXE}")
+    else()
+        message(WARNING "Clang-Tidy requested but not found!")
+    endif()
 endif()

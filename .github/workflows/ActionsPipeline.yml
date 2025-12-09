@@ -2,24 +2,39 @@ name: C++ CI Pipeline
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
     paths-ignore:
-      - '**.md'
-      - 'docs/**'
+      - "**.md"
+      - "docs/**"
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
     paths-ignore:
-      - '**.md'
-      - 'docs/**'
+      - "**.md"
+      - "docs/**"
 
 env:
   CMAKE_BUILD_PARALLEL_LEVEL: 4
 
 jobs:
+  static-analysis:
+    name: Clang-Tidy Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Tools
+        run: sudo apt-get update && sudo apt-get install -y clang-tidy ninja-build
+
+      - name: Configure CMake (Lint)
+        run: cmake --preset ci-lint
+
+      - name: Analyze Code
+        run: cmake --build --preset ci-lint
+
   build-and-test:
     name: ${{ matrix.preset }}
     runs-on: ubuntu-latest
-
 
     strategy:
       fail-fast: false
@@ -29,7 +44,6 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-
 
       - name: Install Ninja
         run: sudo apt-get update && sudo apt-get install -y ninja-build
