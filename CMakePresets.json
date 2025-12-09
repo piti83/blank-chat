@@ -59,6 +59,18 @@
         "ENABLE_ASAN": "OFF",
         "ENABLE_TSAN": "ON"
       }
+    },
+    {
+      "name": "ci-lint",
+      "displayName": "Static Analysis (Lint)",
+      "description": "Build with Clang-Tidy enabled",
+      "inherits": "base-linux",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "ENABLE_CLANG_TIDY": "ON",
+        "ENABLE_ASAN": "OFF",
+        "ENABLE_TSAN": "OFF"
+      }
     }
   ],
   "buildPresets": [
@@ -77,6 +89,10 @@
     {
       "name": "ci-tsan",
       "configurePreset": "ci-tsan"
+    },
+    {
+      "name": "ci-lint",
+      "configurePreset": "ci-lint"
     }
   ],
   "testPresets": [
