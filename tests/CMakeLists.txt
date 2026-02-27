@@ -1,16 +1,11 @@
-include(GoogleTest)
+find_package(GTest CONFIG REQUIRED)
 
-file(GLOB_RECURSE TEST_SOURCES "*.cpp")
-
-add_executable(unit_tests ${TEST_SOURCES})
-
-target_link_libraries(unit_tests
-    PRIVATE
-    blank-chat-core
+add_executable(blank_chat_unit_tests gtest_main.cpp)
+target_link_libraries(blank_chat_unit_tests PRIVATE 
     GTest::gtest_main
-    spdlog::spdlog
+    lib_protocol
+    lib_crypto
+    lib_network
 )
 
-target_compile_features(unit_tests PRIVATE cxx_std_20)
-
-gtest_discover_tests(unit_tests)
+add_test(NAME AllTests COMMAND blank_chat_unit_tests)
