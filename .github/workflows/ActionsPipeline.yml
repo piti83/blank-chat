@@ -1,59 +1,82 @@
-name: C++ CI Pipeline
+name: blank-chat CI
 
 on:
   push:
-    branches: ["main"]
-    paths-ignore:
-      - "**.md"
-      - "docs/**"
+    branches: [ "main" ]
   pull_request:
-    branches: ["main"]
-    paths-ignore:
-      - "**.md"
-      - "docs/**"
-
-env:
-  CMAKE_BUILD_PARALLEL_LEVEL: 4
+    branches: [ "main" ]
 
 jobs:
-  static-analysis:
-    name: Clang-Tidy Lint
+  lint-and-format:
+    name: Lint & Format
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
+      - uses: actions/checkout@v4
+      
       - name: Install Tools
-        run: sudo apt-get update && sudo apt-get install -y clang-tidy ninja-build
+        run: sudo apt-get update && sudo apt-get install -y clang-format clang-tidy ninja-build
 
-      - name: Configure CMake (Lint)
-        run: cmake --preset ci-lint
+      - name: Check Formatting
+        run: find modules apps tests -iname "*.h" -o -iname "*.hpp" -o -iname "*.cpp" | xargs clang-format --dry-run --Werror
 
-      - name: Analyze Code
-        run: cmake --build --preset ci-lint
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgJsonGlob: 'vcpkg.json'
+
+      - name: Full Static Analysis
+        run: |
+          cmake --preset linux-debug
+          run-clang-tidy -p build/linux-debug -header-filter='.*'
 
   build-and-test:
-    name: ${{ matrix.preset }}
+    name: Build & Test (${{ matrix.preset }})
+    needs: lint-and-format
     runs-on: ubuntu-latest
-
     strategy:
       fail-fast: false
       matrix:
-        preset: [ci-asan, ci-tsan, dev-release]
+        preset: [linux-asan, linux-ubsan, linux-tsan, linux-coverage, linux-debug]
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install Ninja
-        run: sudo apt-get update && sudo apt-get install -y ninja-build
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build clang-tidy gcovr valgrind
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgJsonGlob: 'vcpkg.json'
 
       - name: Configure CMake
         run: cmake --preset ${{ matrix.preset }}
 
-      - name: Build
-        run: cmake --build --preset ${{ matrix.preset }}
+      - name: Build Project
+        run: cmake --build build/${{ matrix.preset }}
 
-      - name: Test (Unit Tests & Sanitizers)
-        if: matrix.preset != 'dev-release'
-        run: ctest --preset ${{ matrix.preset }} --output-on-failure
+      - name: Run Unit Tests
+        if: matrix.preset != 'linux-coverage' && matrix.preset != 'linux-debug'
+        run: ctest --test-dir build/${{ matrix.preset }} --output-on-failure
+
+      - name: Run Valgrind (Memcheck)
+        if: matrix.preset == 'linux-debug'
+        run: |
+          valgrind --leak-check=full \
+                   --show-leak-kinds=all \
+                   --errors-for-leak-kinds=all \
+                   --error-exitcode=1 \
+                   ./build/linux-debug/tests/blank_chat_unit_tests
+
+      - name: Run Tests & Generate Coverage
+        if: matrix.preset == 'linux-coverage'
+        run: cmake --build build/linux-coverage --target coverage
+
+      - name: Upload Coverage Report
+        if: matrix.preset == 'linux-coverage'
+        uses: actions/upload-artifact@v4
+        with:
+          name: HTML-Coverage-Report
+          path: build/linux-coverage/coverage_report/

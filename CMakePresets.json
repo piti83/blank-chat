@@ -1,124 +1,67 @@
 {
-  "version": 3,
-  "cmakeMinimumRequired": {
-    "major": 3,
-    "minor": 28,
-    "patch": 0
-  },
+  "version": 6,
   "configurePresets": [
     {
-      "name": "base-linux",
+      "name": "base",
       "hidden": true,
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
-        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-        "BUILD_TESTS": "ON"
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
       }
     },
     {
-      "name": "dev-debug",
-      "displayName": "Developer Debug",
-      "description": "Standard debug build (Symbols, No Sanitizers)",
-      "inherits": "base-linux",
+      "name": "linux-debug",
+      "inherits": "base",
+      "displayName": "Plain Debug (for Valgrind/GDB)",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "ENABLE_ASAN": "OFF",
-        "ENABLE_TSAN": "OFF"
+        "USE_SAFE_STL": "ON"
       }
     },
     {
-      "name": "dev-release",
-      "displayName": "Release Optimization",
-      "description": "Optimized build (-O3) for Performance Testing",
-      "inherits": "base-linux",
+      "name": "linux-asan",
+      "inherits": "base",
+      "displayName": "Debug + ASan",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "USE_ASAN": "ON"
+      }
+    },
+    {
+      "name": "linux-ubsan",
+      "inherits": "base",
+      "displayName": "Debug + UBSan",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "USE_UBSAN": "ON"
+      }
+    },
+    {
+      "name": "linux-tsan",
+      "inherits": "base",
+      "displayName": "Debug + TSan",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "USE_TSAN": "ON"
+      }
+    },
+    {
+      "name": "linux-static-release",
+      "inherits": "base",
+      "displayName": "Static Release (Production)",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "ENABLE_ASAN": "OFF",
-        "ENABLE_TSAN": "OFF"
+        "VCPKG_TARGET_TRIPLET": "x64-linux-release-static"
       }
     },
     {
-      "name": "ci-asan",
-      "displayName": "Address Sanitizer",
-      "description": "Debug build with AddressSanitizer (Leaks, Buffer Overflow)",
-      "inherits": "base-linux",
+      "name": "linux-coverage",
+      "inherits": "base",
+      "displayName": "Code Coverage Build",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "ENABLE_ASAN": "ON",
-        "ENABLE_TSAN": "OFF"
-      }
-    },
-    {
-      "name": "ci-tsan",
-      "displayName": "Thread Sanitizer",
-      "description": "Debug build with ThreadSanitizer (Race Conditions)",
-      "inherits": "base-linux",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "ENABLE_ASAN": "OFF",
-        "ENABLE_TSAN": "ON"
-      }
-    },
-    {
-      "name": "ci-lint",
-      "displayName": "Static Analysis (Lint)",
-      "description": "Build with Clang-Tidy enabled",
-      "inherits": "base-linux",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "ENABLE_CLANG_TIDY": "ON",
-        "ENABLE_ASAN": "OFF",
-        "ENABLE_TSAN": "OFF"
-      }
-    }
-  ],
-  "buildPresets": [
-    {
-      "name": "dev-debug",
-      "configurePreset": "dev-debug"
-    },
-    {
-      "name": "dev-release",
-      "configurePreset": "dev-release"
-    },
-    {
-      "name": "ci-asan",
-      "configurePreset": "ci-asan"
-    },
-    {
-      "name": "ci-tsan",
-      "configurePreset": "ci-tsan"
-    },
-    {
-      "name": "ci-lint",
-      "configurePreset": "ci-lint"
-    }
-  ],
-  "testPresets": [
-    {
-      "name": "dev-debug",
-      "configurePreset": "dev-debug",
-      "output": {
-        "outputOnFailure": true
-      },
-      "execution": {
-        "noTestsAction": "error",
-        "stopOnFailure": true
-      }
-    },
-    {
-      "name": "ci-asan",
-      "configurePreset": "ci-asan",
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "ci-tsan",
-      "configurePreset": "ci-tsan",
-      "output": {
-        "outputOnFailure": true
+        "USE_COVERAGE": "ON"
       }
     }
   ]
