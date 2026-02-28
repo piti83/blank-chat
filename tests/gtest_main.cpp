@@ -1,20 +1,14 @@
-#include "crypto/placeholder.h"
-#include "network/placeholder.h"
-#include "protocol/placeholder.h"
-
 #include <gtest/gtest.h>
+#include <iostream>
+#include <sodium.h>
 
-TEST(CryptoModuleTest, ReturnsCorrectStatus)
+auto main(int argc, char** argv) -> int
 {
-    EXPECT_EQ(blank_chat::crypto::GetCryptoStatus(), "Crypto OK");
-}
+    if (sodium_init() < 0) {
+        std::cerr << "Failed to initialize libsodium!\n";
+        return 1;
+    }
 
-TEST(NetworkModuleTest, ReturnsCorrectStatus)
-{
-    EXPECT_EQ(blank_chat::network::GetNetworkStatus(), "Network OK");
-}
-
-TEST(ProtocolModuleTest, ReturnsCorrectStatus)
-{
-    EXPECT_EQ(blank_chat::protocol::GetProtocolStatus(), "Protocol OK");
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
 }

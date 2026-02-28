@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "dependencies": [
     "spdlog",
-    "gtest"
+    "gtest",
+    "libsodium"
   ],
   "overrides": [
     {
@@ -13,6 +14,10 @@
     {
       "name": "gtest",
       "version": "1.17.0#2"
+    },
+    {
+      "name": "libsodium",
+      "version": "1.0.21"
     }
   ]
 }

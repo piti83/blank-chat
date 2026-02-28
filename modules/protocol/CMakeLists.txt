@@ -1,4 +1,7 @@
-add_library(lib_protocol STATIC src/placeholder.cpp)
+add_library(lib_protocol STATIC 
+  src/placeholder.cpp
+  src/mailbox_id.cpp
+)
 
 target_include_directories(lib_protocol
     PUBLIC 
@@ -7,4 +10,9 @@ target_include_directories(lib_protocol
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(lib_protocol PUBLIC spdlog::spdlog)
+target_link_libraries(lib_protocol 
+  PUBLIC 
+    lib_utils
+  PRIVATE
+    spdlog::spdlog
+)
