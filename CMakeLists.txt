@@ -85,6 +85,7 @@ if(CLANG_FORMAT_EXE)
 endif()
 
 find_package(spdlog CONFIG REQUIRED)
+find_package(unofficial-sodium CONFIG REQUIRED)
 find_package(GTest CONFIG REQUIRED)
 
 add_subdirectory(modules)
