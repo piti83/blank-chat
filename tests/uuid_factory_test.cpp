@@ -1,5 +1,5 @@
-#include "utils/uuid_factory.h"
 #include "utils/uuid_constants.h"
+#include "utils/uuid_factory.h"
 
 #include <gtest/gtest.h>
 #include <unordered_set>
@@ -22,7 +22,7 @@ TEST(UuidFactoryTest, GeneratesUniqueUuids)
     for (int i = 0; i < kIterations; ++i) {
         auto uuid = UuidFactory::GenerateUuidV4();
         std::string uuidStr(uuid.begin(), uuid.end());
-        
+
         auto [iter, inserted] = generatedUuids.insert(uuidStr);
         EXPECT_TRUE(inserted);
     }

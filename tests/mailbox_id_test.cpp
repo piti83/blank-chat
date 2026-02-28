@@ -22,7 +22,7 @@ TEST(MailboxIdTest, GetAsStringFormatsCorrectly)
     EXPECT_EQ(str.length(), 36);
 
     std::regex uuidRegex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$");
-    EXPECT_TRUE(std::regex_match(str, uuidRegex)); 
+    EXPECT_TRUE(std::regex_match(str, uuidRegex));
 }
 
 TEST(MailboxIdTest, IdentifiersAreComparable)

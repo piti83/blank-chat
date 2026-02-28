@@ -11,9 +11,9 @@ inline constexpr size_t kVersionByteIndex = 6;
 inline constexpr size_t kVariantByteIndex = 8;
 
 inline constexpr uint8_t kVersionClearMask = 0x0F;
-inline constexpr uint8_t kVersionSetMask   = 0x40;
+inline constexpr uint8_t kVersionSetMask = 0x40;
 
 inline constexpr uint8_t kVariantClearMask = 0x3F;
-inline constexpr uint8_t kVariantSetMask   = 0x80;
+inline constexpr uint8_t kVariantSetMask = 0x80;
 
-}
+} // namespace blank_chat::utils

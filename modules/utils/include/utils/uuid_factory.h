@@ -3,8 +3,8 @@
 #include "utils/uuid_constants.h"
 
 #include <cstdint>
-#include <spdlog/spdlog.h>
 #include <sodium.h>
+#include <spdlog/spdlog.h>
 
 namespace blank_chat::utils {
 
