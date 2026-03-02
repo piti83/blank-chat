@@ -1,5 +1,6 @@
 add_library(lib_utils STATIC 
   src/uuid_factory.cpp
+  src/logger.cpp
 )
 
 target_include_directories(lib_utils

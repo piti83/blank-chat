@@ -4,14 +4,14 @@
 #include <gtest/gtest.h>
 #include <regex>
 
-using namespace blank_chat::protocol;
+using namespace bc::protocol;
 
 TEST(MailboxIdTest, CreateReturnsValidId)
 {
     auto mailboxId = MailboxId::Create();
     auto raw = mailboxId.GetRaw();
 
-    EXPECT_EQ(raw.size(), blank_chat::utils::kUuidSize);
+    EXPECT_EQ(raw.size(), bc::utils::kUuidSize);
 }
 
 TEST(MailboxIdTest, GetAsStringFormatsCorrectly)

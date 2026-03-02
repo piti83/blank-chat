@@ -2,7 +2,7 @@
 
 #include <spdlog/spdlog.h>
 
-namespace blank_chat::protocol {
+namespace bc::protocol {
 
 auto GetProtocolStatus() -> std::string
 {
@@ -10,4 +10,4 @@ auto GetProtocolStatus() -> std::string
     return "Protocol OK";
 }
 
-} // namespace blank_chat::protocol
+} // namespace bc::protocol

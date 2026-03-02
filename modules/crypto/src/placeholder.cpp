@@ -2,7 +2,7 @@
 
 #include <spdlog/spdlog.h>
 
-namespace blank_chat::crypto {
+namespace bc::crypto {
 
 auto GetCryptoStatus() -> std::string
 {
@@ -10,4 +10,4 @@ auto GetCryptoStatus() -> std::string
     return "Crypto OK";
 }
 
-} // namespace blank_chat::crypto
+} // namespace bc::crypto

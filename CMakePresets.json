@@ -16,7 +16,8 @@
       "displayName": "Plain Debug (for Valgrind/GDB)",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "USE_SAFE_STL": "ON"
+        "USE_SAFE_STL": "ON",
+        "BC_ENABLE_LOGS": "ON"
       }
     },
     {
@@ -25,7 +26,8 @@
       "displayName": "Debug + ASan",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "USE_ASAN": "ON"
+        "USE_ASAN": "ON",
+        "BC_ENABLE_LOGS": "ON"
       }
     },
     {
@@ -34,7 +36,8 @@
       "displayName": "Debug + UBSan",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "USE_UBSAN": "ON"
+        "USE_UBSAN": "ON",
+        "BC_ENABLE_LOGS": "ON"
       }
     },
     {
@@ -43,7 +46,8 @@
       "displayName": "Debug + TSan",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "USE_TSAN": "ON"
+        "USE_TSAN": "ON",
+        "BC_ENABLE_LOGS": "ON"
       }
     },
     {
@@ -52,7 +56,8 @@
       "displayName": "Static Release (Production)",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "VCPKG_TARGET_TRIPLET": "x64-linux-release-static"
+        "VCPKG_TARGET_TRIPLET": "x64-linux-release-static",
+        "BC_ENABLE_LOGS": "OFF"
       }
     },
     {
@@ -61,7 +66,8 @@
       "displayName": "Code Coverage Build",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "USE_COVERAGE": "ON"
+        "USE_COVERAGE": "ON",
+        "BC_ENABLE_LOGS": "ON"
       }
     }
   ]

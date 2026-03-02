@@ -1,7 +1,7 @@
 #pragma once
 #include <string>
 
-namespace blank_chat::crypto {
+namespace bc::crypto {
 
 auto GetCryptoStatus() -> std::string;
 

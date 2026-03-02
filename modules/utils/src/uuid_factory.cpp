@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <sodium/randombytes.h>
 
-namespace blank_chat::utils {
+namespace bc::utils {
 
 auto UuidFactory::GenerateUuidV4() -> std::array<uint8_t, kUuidSize>
 {
@@ -19,4 +19,4 @@ auto UuidFactory::GenerateUuidV4() -> std::array<uint8_t, kUuidSize>
     return uuidBuffer;
 }
 
-} // namespace blank_chat::utils
+} // namespace bc::utils

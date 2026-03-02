@@ -18,6 +18,7 @@ option(USE_UBSAN "Enable Undefined Behavior Sanitizer" OFF)
 option(USE_TSAN "Enable Thread Sanitizer" OFF)
 option(USE_SAFE_STL "Enable Debugging Mode for STL Containers" OFF)
 option(USE_COVERAGE "Enable Code Coverage reporting" OFF)
+option(BC_ENABLE_LOGS "Enable detailed diagnostic logging via spdlog" OFF)
 
 if(USE_SAFE_STL)
     add_compile_definitions(_GLIBCXX_DEBUG)
@@ -82,6 +83,15 @@ if(CLANG_FORMAT_EXE)
         COMMAND ${CLANG_FORMAT_EXE} -i -style=file ${ALL_SOURCE_FILES}
         COMMENT "Formatting all C++ files with clang-format..."
     )
+endif()
+
+if(BC_ENABLE_LOGS)
+    add_compile_definitions(BC_ENABLE_LOGS)
+    message(STATUS "Diagnostic logging enabled (BC_ENABLE_LOGS)")
+
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        add_compile_options("-fmacro-prefix-map=${CMAKE_SOURCE_DIR}=.")
+    endif()
 endif()
 
 find_package(spdlog CONFIG REQUIRED)
