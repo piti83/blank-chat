@@ -12,10 +12,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
+      - name: Make scripts executable
+        run: chmod +x scripts/*.sh
+
       - name: Install Tools
         run: sudo apt-get update && sudo apt-get install -y clang-format clang-tidy ninja-build
 
+      # Zostawiamy natywne sprawdzanie formatowania.
+      # Nasz scripts/format.sh formatuje kod w miejscu, a w CI chcemy
+      # rzucić błędem (dry-run), jeśli ktoś zapomniał go sformatować przed pushem.
       - name: Check Formatting
         run: find modules apps tests -iname "*.h" -o -iname "*.hpp" -o -iname "*.cpp" | xargs clang-format --dry-run --Werror
 
@@ -26,7 +32,7 @@ jobs:
 
       - name: Full Static Analysis
         run: |
-          cmake --preset linux-debug
+          ./scripts/build.sh linux-debug
           run-clang-tidy -p build/linux-debug -header-filter='.*'
 
   build-and-test:
@@ -41,6 +47,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Make scripts executable
+        run: chmod +x scripts/*.sh
+
       - name: Install System Dependencies
         run: |
           sudo apt-get update
@@ -51,15 +60,13 @@ jobs:
         with:
           vcpkgJsonGlob: 'vcpkg.json'
 
-      - name: Configure CMake
-        run: cmake --preset ${{ matrix.preset }}
-
       - name: Build Project
-        run: cmake --build build/${{ matrix.preset }}
+        if: matrix.preset != 'linux-coverage'
+        run: ./scripts/build.sh ${{ matrix.preset }}
 
       - name: Run Unit Tests
         if: matrix.preset != 'linux-coverage' && matrix.preset != 'linux-debug'
-        run: ctest --test-dir build/${{ matrix.preset }} --output-on-failure
+        run: ./scripts/test.sh ${{ matrix.preset }}
 
       - name: Run Valgrind (Memcheck)
         if: matrix.preset == 'linux-debug'
@@ -70,9 +77,9 @@ jobs:
                    --error-exitcode=1 \
                    ./build/linux-debug/tests/blank_chat_unit_tests
 
-      - name: Run Tests & Generate Coverage
+      - name: Generate Coverage Report
         if: matrix.preset == 'linux-coverage'
-        run: cmake --build build/linux-coverage --target coverage
+        run: ./scripts/coverage.sh
 
       - name: Upload Coverage Report
         if: matrix.preset == 'linux-coverage'
