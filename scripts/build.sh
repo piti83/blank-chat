@@ -3,21 +3,22 @@
 cd "$(dirname "$0")/.." || exit 1
 
 PRESET=${1:-linux-debug}
+BUILD_DIR="build/$PRESET"
 
-echo "Configuring (Preset: $PRESET)..."
+echo "Configuring CMake (Preset: $PRESET)..."
 cmake --preset "$PRESET"
 
 if [ $? -ne 0 ]; then
-    echo "CMake configuration error!"
+    echo "Error: CMake configuration failed."
     exit 1
 fi
 
-echo "Building project (Preset: $PRESET)..."
-cmake --build --preset "$PRESET"
+echo "Building the project (Preset: $PRESET)..."
+cmake --build "$BUILD_DIR"
 
 if [ $? -eq 0 ]; then
-    echo "Building finished successfully"
+    echo "Build completed successfully!"
 else
-    echo "Error occured during building process!"
+    echo "Error: Build failed."
     exit 1
 fi
