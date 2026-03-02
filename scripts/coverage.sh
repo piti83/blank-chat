@@ -14,7 +14,7 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "Building the project..."
-cmake --build --preset "$PRESET"
+cmake --build "$BUILD_DIR"
 if [ $? -ne 0 ]; then
     echo "Error: Build failed."
     exit 1
