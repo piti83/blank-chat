@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace blank_chat::utils {
+namespace bc::utils {
 
 inline constexpr std::size_t kUuidSize = 16;
 
@@ -16,4 +16,4 @@ inline constexpr uint8_t kVersionSetMask = 0x40;
 inline constexpr uint8_t kVariantClearMask = 0x3F;
 inline constexpr uint8_t kVariantSetMask = 0x80;
 
-} // namespace blank_chat::utils
+} // namespace bc::utils

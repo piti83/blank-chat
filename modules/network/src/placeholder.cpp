@@ -2,7 +2,7 @@
 
 #include <spdlog/spdlog.h>
 
-namespace blank_chat::network {
+namespace bc::network {
 
 auto GetNetworkStatus() -> std::string
 {
@@ -10,4 +10,4 @@ auto GetNetworkStatus() -> std::string
     return "Network OK";
 }
 
-} // namespace blank_chat::network
+} // namespace bc::network

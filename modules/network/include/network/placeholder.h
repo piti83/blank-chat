@@ -1,7 +1,7 @@
 #pragma once
 #include <string>
 
-namespace blank_chat::network {
+namespace bc::network {
 
 auto GetNetworkStatus() -> std::string;
 

@@ -4,7 +4,7 @@
 #include <gtest/gtest.h>
 #include <unordered_set>
 
-using namespace blank_chat::utils;
+using namespace bc::utils;
 
 TEST(UuidFactoryTest, GeneratesCorrectV4VersionAndVariant)
 {

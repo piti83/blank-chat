@@ -1,8 +1,8 @@
 #pragma once
 #include <string>
 
-namespace blank_chat::protocol {
+namespace bc::protocol {
 
 auto GetProtocolStatus() -> std::string;
 
-} // namespace blank_chat::protocol
+} // namespace bc::protocol
