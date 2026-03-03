@@ -16,7 +16,7 @@
       "displayName": "Plain Debug (for Valgrind/GDB)",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "USE_SAFE_STL": "ON",
+        "USE_SAFE_STL": "OFF",
         "BC_ENABLE_LOGS": "ON"
       }
     },

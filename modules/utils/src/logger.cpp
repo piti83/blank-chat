@@ -5,6 +5,7 @@
 #ifdef BC_ENABLE_LOGS
 #include "utils/log_modules.h"
 
+#include <filesystem>
 #include <spdlog/async.h>
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
@@ -31,6 +32,7 @@ static std::array<std::shared_ptr<spdlog::logger>, static_cast<uint8_t>(LogModul
 void InitLogging()
 {
 #ifdef BC_ENABLE_LOGS
+    std::filesystem::create_directories("logs");
     spdlog::init_thread_pool(logQueueSize, logThreadCount);
 
     auto consoleSink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
@@ -58,10 +60,10 @@ void InitLogging()
 void ShutdownLogging()
 {
 #ifdef BC_ENABLE_LOGS
-    spdlog::shutdown();
     for (auto& logger : loggers) {
         logger.reset();
     }
+    spdlog::shutdown();
 #endif
 }
 
