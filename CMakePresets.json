@@ -1,0 +1,74 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+      }
+    },
+    {
+      "name": "linux-debug",
+      "inherits": "base",
+      "displayName": "Plain Debug (for Valgrind/GDB)",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "USE_SAFE_STL": "OFF",
+        "BC_ENABLE_LOGS": "ON"
+      }
+    },
+    {
+      "name": "linux-asan",
+      "inherits": "base",
+      "displayName": "Debug + ASan",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "USE_ASAN": "ON",
+        "BC_ENABLE_LOGS": "ON"
+      }
+    },
+    {
+      "name": "linux-ubsan",
+      "inherits": "base",
+      "displayName": "Debug + UBSan",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "USE_UBSAN": "ON",
+        "BC_ENABLE_LOGS": "ON"
+      }
+    },
+    {
+      "name": "linux-tsan",
+      "inherits": "base",
+      "displayName": "Debug + TSan",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "USE_TSAN": "ON",
+        "BC_ENABLE_LOGS": "ON"
+      }
+    },
+    {
+      "name": "linux-static-release",
+      "inherits": "base",
+      "displayName": "Static Release (Production)",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "VCPKG_TARGET_TRIPLET": "x64-linux-release-static",
+        "BC_ENABLE_LOGS": "OFF"
+      }
+    },
+    {
+      "name": "linux-coverage",
+      "inherits": "base",
+      "displayName": "Code Coverage Build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "USE_COVERAGE": "ON",
+        "BC_ENABLE_LOGS": "ON"
+      }
+    }
+  ]
+}
