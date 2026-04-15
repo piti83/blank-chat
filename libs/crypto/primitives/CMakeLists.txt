@@ -1,0 +1,12 @@
+add_library(crypto_primitives STATIC
+    # src/.cpp files
+)
+
+target_include_directories(crypto_primitives
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(crypto_primitives PUBLIC unofficial-sodium::sodium)
