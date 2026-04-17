@@ -1,0 +1,53 @@
+#!/usr/bin/env python3
+
+import argparse
+from pathlib import Path
+
+from utils import change_to_project_root, print_info, print_success, run_command
+
+
+def main():
+    change_to_project_root()
+
+    parser = argparse.ArgumentParser(description="Build the CMake project.")
+    parser.add_argument(
+        "preset",
+        nargs="?",
+        default="linux-debug",
+        help="CMake preset to use (default: linux-debug)",
+    )
+    parser.add_argument(
+        "-c",
+        "--configure",
+        action="store_true",
+        help="Force CMake configuration before building",
+    )
+    args = parser.parse_args()
+
+    build_dir = Path("build") / args.preset
+
+    if args.configure or not build_dir.is_dir():
+        print_info(f"Configuring CMake (Preset: {args.preset})...")
+        run_command(
+            ["cmake", "--preset", args.preset], fail_msg="CMake configuration failed."
+        )
+    else:
+        print_info("Build directory exists. Skipping configuration (use -c to force).")
+
+    print_info(f"Building the project (Preset: {args.preset})...")
+    run_command(["cmake", "--build", str(build_dir)], fail_msg="Build failed.")
+
+    compile_cmds = build_dir / "compile_commands.json"
+    root_compile_cmds = Path("compile_commands.json")
+
+    if compile_cmds.exists():
+        if root_compile_cmds.exists() or root_compile_cmds.is_symlink():
+            root_compile_cmds.unlink()
+        root_compile_cmds.symlink_to(compile_cmds)
+        print_info("Symlinked compile_commands.json to project root.")
+
+    print_success("Build completed successfully!")
+
+
+if __name__ == "__main__":
+    main()
