@@ -62,3 +62,8 @@ cmake-build-*/
 Thumbs.db
 
 logs/
+
+*.pyc
+/__pycache__/*
+
+compile_commands.json
