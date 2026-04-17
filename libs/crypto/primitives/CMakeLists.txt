@@ -1,5 +1,5 @@
 add_library(crypto_primitives STATIC
-    # src/.cpp files
+    src/primitives.cpp
 )
 
 target_include_directories(crypto_primitives

@@ -1,4 +1,13 @@
+#include <iostream>
+#include <primitives.hpp>
+#include <sodium.h>
+
 auto main() -> int
 {
-	return 0;
+    std::cout << "Running client...\n";
+    bc::crypto::primitives::Primitives primitives;
+    if (sodium_init()) {
+        std::cout << "Sodium linking works...\n";
+    }
+    return 0;
 }
