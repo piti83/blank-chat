@@ -9,4 +9,6 @@ target_include_directories(crypto_primitives
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(crypto_primitives PUBLIC unofficial-sodium::sodium)
+target_link_libraries(crypto_primitives PUBLIC
+    ext::sodium
+)

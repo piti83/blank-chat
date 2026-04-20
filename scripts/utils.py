@@ -29,12 +29,28 @@ def print_error(msg):
     print(f"{Colors.RED}{Colors.BOLD}Error: {msg}{Colors.RESET}", file=sys.stderr)
 
 
+def load_dotenv(project_root):
+    """Prosty parser pliku .env (bez zewnętrznych zależności)."""
+    env_path = project_root / ".env"
+    if env_path.exists():
+        with open(env_path, "r") as f:
+            for line in f:
+                line = line.strip()
+                # Ignoruj puste linie i komentarze
+                if line and not line.startswith("#") and "=" in line:
+                    key, value = line.split("=", 1)
+                    # Ustaw w os.environ, jeśli jeszcze nie istnieje
+                    if key.strip() not in os.environ:
+                        os.environ[key.strip()] = value.strip()
+
+
 def change_to_project_root():
     """Resolves the project root relative to this file and changes the working directory."""
     script_dir = Path(__file__).resolve().parent
     project_root = script_dir.parent
     try:
         os.chdir(project_root)
+        load_dotenv(project_root)
         return project_root
     except OSError:
         print_error("Could not change to project root directory.")
