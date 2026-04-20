@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.25)
 project(blank-chat LANGUAGES CXX)
 
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Dependencies.cmake)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -93,10 +95,6 @@ if(BC_ENABLE_LOGS)
     add_compile_options("-fmacro-prefix-map=${CMAKE_SOURCE_DIR}=.")
   endif()
 endif()
-
-find_package(spdlog CONFIG REQUIRED)
-find_package(unofficial-sodium CONFIG REQUIRED)
-find_package(GTest CONFIG REQUIRED)
 
 add_subdirectory(libs)
 add_subdirectory(apps)

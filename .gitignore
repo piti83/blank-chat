@@ -67,3 +67,8 @@ logs/
 /__pycache__/*
 
 compile_commands.json
+
+.clj-kondo/
+.lsp/
+
+.env
