@@ -22,7 +22,7 @@ stages:
 
 before_script:
   - apt-get update -y
-  - apt-get install -y cmake ninja-build python3 g++ gcc clang clang-format clang-tidy valgrind gcovr git curl pkg-config cppcheck jq bc automake autoconf libtool
+  - apt-get install -y cmake ninja-build python3 g++ gcc clang clang-format clang-tidy valgrind gcovr git curl pkg-config cppcheck jq bc automake autoconf libtool xz-utils
 # ==========================================
 # 1. STATIC ANALYSIS & LINTING
 # ==========================================
