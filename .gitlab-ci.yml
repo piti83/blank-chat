@@ -9,6 +9,7 @@ include:
 
 stages:
   - static_analysis
+  - test
   - test_sanitizers
   - test_valgrind
   - coverage
