@@ -1,9 +1,17 @@
 #!/usr/bin/env python3
 
 import argparse
+import os
+import sys
 from pathlib import Path
 
-from utils import change_to_project_root, print_info, print_success, run_command
+from utils import (
+    change_to_project_root,
+    load_yocto_env,
+    print_info,
+    print_success,
+    run_command,
+)
 
 
 def main():
@@ -23,6 +31,10 @@ def main():
         help="Force CMake configuration before building",
     )
     args = parser.parse_args()
+
+    if args.preset == "yocto-debug" and "OECORE_NATIVE_SYSROOT" not in os.environ:
+        if not load_yocto_env():
+            sys.exit(1)
 
     build_dir = Path("build") / args.preset
 

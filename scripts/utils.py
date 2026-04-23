@@ -76,3 +76,44 @@ def run_command(cmd, cwd=None, exit_on_fail=True, fail_msg="Command failed."):
 def get_arg(args, position=1, default="linux-debug"):
     """Safely fetch a command line argument by position."""
     return args[position] if len(args) > position else default
+
+
+def load_yocto_env():
+    """
+    Automatically loads Yocto SDK environment variables
+    into the current Python process.
+    """
+
+    default_sdk_path = (
+        Path(__file__).resolve().parent.parent.parent / "yocto-dev" / "sdk"
+    )
+    sdk_dir = os.environ.get("YOCTO_SDK_DIR", str(default_sdk_path))
+
+    sdk_path = Path(sdk_dir)
+    if not sdk_path.exists():
+        print_error(f"SDK directory not found: {sdk_dir}")
+        print_info("Please install the SDK or define YOCTO_SDK_DIR in your .env file.")
+        return False
+
+    env_scripts = list(sdk_path.glob("environment-setup-*"))
+    if not env_scripts:
+        print_error(f"No environment-setup script found in {sdk_dir}")
+        return False
+
+    env_script = env_scripts[0]
+    print_info(f"Auto-loading Yocto SDK environment from: {env_script.name}...")
+
+    command = f"source {env_script} && env"
+    proc = subprocess.run(["bash", "-c", command], stdout=subprocess.PIPE, text=True)
+
+    if proc.returncode != 0:
+        print_error("Failed to load Yocto SDK environment.")
+        return False
+
+    for line in proc.stdout.splitlines():
+        if "=" in line:
+            key, value = line.split("=", 1)
+            if key not in ["BASH_FUNC_PROMPT_COMMAND%%", "_"]:
+                os.environ[key] = value
+
+    return True
