@@ -36,7 +36,11 @@ add_library(ext::sodium ALIAS ext_sodium)
 
 if(USE_FETCH_CONTENT)
   target_link_libraries(ext_sodium INTERFACE sodium)
-  target_include_directories(ext_sodium INTERFACE "${libsodium_SOURCE_DIR}/src/libsodium/include")
+
+  target_include_directories(ext_sodium INTERFACE
+    "${libsodium_SOURCE_DIR}/src/libsodium/include"
+    "${libsodium_SOURCE_DIR}/src/libsodium/include/sodium"
+  )
 else()
   target_link_libraries(ext_sodium INTERFACE ${SODIUM_LIBRARIES})
   target_include_directories(ext_sodium INTERFACE ${SODIUM_INCLUDE_DIRS})
