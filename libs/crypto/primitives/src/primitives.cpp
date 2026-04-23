@@ -4,7 +4,7 @@
 
 namespace bc::crypto::primitives {
 
-Primitives::Primitives()
+Primitives::Primitives() // NOLINT(modernize-use-equals-default)
 {
     std::cout << "Hello from primitives\n";
 }
