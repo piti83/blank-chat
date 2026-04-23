@@ -52,7 +52,13 @@ run_tests_matrix:
     - export CC=$COMPILER_CC
     - echo "Building with $COMPILER_CXX and preset $PRESET..."
     - python3 scripts/build.py $PRESET
-    - python3 scripts/test.py $PRESET
+    - |
+      if [ "$PRESET" = "linux-tsan" ]; then
+        echo "Running TSan tests with ASLR disabled via setarch..."
+        setarch $(uname -m) -R python3 scripts/test.py $PRESET
+      else
+        python3 scripts/test.py $PRESET
+      fi
 
 # ==========================================
 # 3. DEEP MEMORY & THREAD ANALYSIS
