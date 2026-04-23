@@ -38,6 +38,12 @@
     "args": ["scripts/build.py", "linux-coverage"],
     "use_new_terminal": false,
   },
+  {
+    "label": "Build: Yocto SDK",
+    "command": "python3",
+    "args": ["scripts/build.py", "yocto-debug"],
+    "use_new_terminal": false,
+  },
 
   // ==========================================
   // RUN TASKS: SERVER
@@ -138,6 +144,12 @@
     "label": "Test: UBSan",
     "command": "python3",
     "args": ["scripts/test.py", "linux-ubsan"],
+    "use_new_terminal": true,
+  },
+  {
+    "label": "Test: Yocto SDK",
+    "command": "python3",
+    "args": ["scripts/test.py", "yocto-debug"],
     "use_new_terminal": true,
   },
 

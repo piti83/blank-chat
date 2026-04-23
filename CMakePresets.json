@@ -66,6 +66,18 @@
         "USE_COVERAGE": "ON",
         "BC_ENABLE_LOGS": "ON"
       }
+    },
+    {
+      "name": "yocto-debug",
+      "inherits": "base",
+      "displayName": "Yocto SDK Build",
+      "toolchainFile": "$env{OECORE_NATIVE_SYSROOT}/usr/share/cmake/OEToolchainConfig.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "BUILD_CLIENT": "OFF",
+        "BUILD_SERVER": "ON",
+        "USE_FETCH_CONTENT": "OFF"
+      }
     }
   ]
 }
