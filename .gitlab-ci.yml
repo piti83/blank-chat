@@ -104,6 +104,8 @@ report_coverage:
 test_yocto_build:
   stage: build_cross_compile
   script:
+    - export GITLAB_TOKEN=$CI_JOB_TOKEN
+    - export GITLAB_PROJECT_ID=$CI_PROJECT_ID
     - python3 scripts/download_sdk.py
     - python3 scripts/build.py yocto-debug
 
