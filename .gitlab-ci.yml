@@ -107,7 +107,7 @@ test_yocto_build:
     - export GITLAB_TOKEN=$CI_JOB_TOKEN
     - export GITLAB_PROJECT_ID=$CI_PROJECT_ID
     - python3 scripts/download_sdk.py
-    - python3 scripts/build.py yocto-debug
+    - python3 scripts/build.py yocto-debug -DCMAKE_CXX_CLANG_TIDY="clang-tidy;--config-file=.clang-tidy;--extra-arg=--sysroot=$SDKTARGETSYSROOT"
 
 # ==========================================
 # 6. PRODUCTION RELEASE BUILD

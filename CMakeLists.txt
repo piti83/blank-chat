@@ -72,10 +72,21 @@ endif()
 
 find_program(CLANG_TIDY_EXE NAMES "clang-tidy")
 if(CLANG_TIDY_EXE)
-  set(CMAKE_CXX_CLANG_TIDY
-    ${CLANG_TIDY_EXE}
+  set(CLANG_TIDY_ARGS
     "--config-file=${CMAKE_CURRENT_SOURCE_DIR}/.clang-tidy"
     "--header-filter=${CMAKE_CURRENT_SOURCE_DIR}/(libs|apps|tests)/.*"
+  )
+
+  if(DEFINED ENV{SDKTARGETSYSROOT})
+    list(APPEND CLANG_TIDY_ARGS
+      "--extra-arg=--sysroot=$ENV{SDKTARGETSYSROOT}"
+    )
+    message(STATUS "Yocto SDK detected: Adding sysroot to clang-tidy")
+  endif()
+
+  set(CMAKE_CXX_CLANG_TIDY
+    ${CLANG_TIDY_EXE}
+    ${CLANG_TIDY_ARGS}
   )
 endif()
 
