@@ -72,7 +72,11 @@ endif()
 
 find_program(CLANG_TIDY_EXE NAMES "clang-tidy")
 if(CLANG_TIDY_EXE)
-  set(CMAKE_CXX_CLANG_TIDY ${CLANG_TIDY_EXE} "--config-file=${CMAKE_CURRENT_SOURCE_DIR}/.clang-tidy")
+  set(CMAKE_CXX_CLANG_TIDY
+    ${CLANG_TIDY_EXE}
+    "--config-file=${CMAKE_CURRENT_SOURCE_DIR}/.clang-tidy"
+    "--header-filter=${CMAKE_CURRENT_SOURCE_DIR}/(libs|apps|tests)/.*"
+  )
 endif()
 
 find_program(CLANG_FORMAT_EXE NAMES "clang-format")
@@ -102,9 +106,9 @@ add_subdirectory(apps)
 option(BUILD_TESTING "Build the testing tree" ON)
 
 if(BUILD_TESTING)
-    enable_testing()
-    add_subdirectory(tests)
-    message(STATUS "Unit tests are ENABLED.")
+  enable_testing()
+  add_subdirectory(tests)
+  message(STATUS "Unit tests are ENABLED.")
 else()
-    message(STATUS "Unit tests are DISABLED.")
+  message(STATUS "Unit tests are DISABLED.")
 endif()
