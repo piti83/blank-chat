@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import subprocess
 import sys
 
 from utils import (
@@ -17,25 +18,12 @@ def main():
     project_root = change_to_project_root()
 
     parser = argparse.ArgumentParser(
-        description="Upload the Yocto SDK to GitLab Package Registry."
+        description="Upload the Yocto SDK to GitHub Releases."
     )
     parser.add_argument(
         "--version", default="1.0.0", help="Version of the SDK package (default: 1.0.0)"
     )
     args = parser.parse_args()
-
-    gitlab_token = os.environ.get("GITLAB_TOKEN")
-    project_id = os.environ.get("GITLAB_PROJECT_ID")
-
-    if not gitlab_token or not project_id:
-        print_error("Missing environment variables!")
-        print_info(
-            "Please set GITLAB_TOKEN and GITLAB_PROJECT_ID before running this script."
-        )
-        print_info(
-            "Example: GITLAB_TOKEN=your_secret GITLAB_PROJECT_ID=123456 python3 scripts/upload_sdk.py"
-        )
-        sys.exit(1)
 
     yocto_base = project_root.parent / "yocto-dev"
     sdk_dir = yocto_base / "poky" / "build" / "tmp" / "deploy" / "sdk"
@@ -59,27 +47,40 @@ def main():
     filename = sdk_file.name
     print_info(f"Found SDK file: {filename}")
 
-    url = f"https://gitlab.com/api/v4/projects/{project_id}/packages/generic/yocto-sdk/{args.version}/{filename}"
-
-    print_info(f"Uploading to GitLab Package Registry (Version: {args.version})...")
+    tag = "sdk-latest"
+    print_info(f"Uploading to GitHub Releases (Tag: {tag})...")
     print_info(
         "This might take a while depending on your upload speed (SDK is usually large)."
     )
 
-    curl_cmd = [
-        "curl",
-        "--header",
-        f"PRIVATE-TOKEN: {gitlab_token}",
-        "--upload-file",
-        str(sdk_file),
-        url,
-    ]
-
-    run_command(
-        curl_cmd,
-        fail_msg="Upload failed. Check your token, project ID, and network connection.",
+    check_release = subprocess.run(
+        ["gh", "release", "view", tag], capture_output=True, text=True
     )
-    print_success("SDK uploaded successfully to GitLab Package Registry!")
+
+    if check_release.returncode != 0:
+        print_info(f"Release {tag} does not exist. Creating it...")
+        run_command(
+            [
+                "gh",
+                "release",
+                "create",
+                tag,
+                str(sdk_file),
+                "--title",
+                "Yocto SDK (Latest)",
+                "--notes",
+                "Automated Yocto SDK rolling release.",
+            ],
+            fail_msg=f"Failed to create release {tag} and upload SDK. Make sure GH_TOKEN is set in CI or you are logged into gh cli locally.",
+        )
+    else:
+        print_info(f"Release {tag} exists. Uploading file...")
+        run_command(
+            ["gh", "release", "upload", tag, str(sdk_file), "--clobber"],
+            fail_msg=f"Failed to upload SDK to release {tag}.",
+        )
+
+    print_success("SDK uploaded successfully to GitHub Releases!")
 
 
 if __name__ == "__main__":
