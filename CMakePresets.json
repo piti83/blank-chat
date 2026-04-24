@@ -76,7 +76,8 @@
         "CMAKE_BUILD_TYPE": "Debug",
         "BUILD_CLIENT": "OFF",
         "BUILD_SERVER": "ON",
-        "USE_FETCH_CONTENT": "OFF"
+        "USE_FETCH_CONTENT": "OFF",
+        "ENABLE_CLANG_TIDY": "OFF"
       }
     }
   ]
