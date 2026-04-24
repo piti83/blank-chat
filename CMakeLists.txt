@@ -80,6 +80,7 @@ if(CLANG_TIDY_EXE)
   if(DEFINED ENV{SDKTARGETSYSROOT})
     list(APPEND CLANG_TIDY_ARGS
       "--extra-arg=--sysroot=$ENV{SDKTARGETSYSROOT}"
+      "--extra-arg=--target=x86_64-poky-linux"
     )
   endif()
 
