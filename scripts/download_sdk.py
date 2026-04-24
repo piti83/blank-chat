@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 
 import argparse
-import json
 import os
 import sys
-import urllib.error
-import urllib.request
 from pathlib import Path
 
 from utils import (
@@ -17,90 +14,51 @@ from utils import (
 )
 
 
-def fetch_json(url, token):
-    """Helper function to query the GitLab API and return the JSON response."""
-    req = urllib.request.Request(url)
-    req.add_header("PRIVATE-TOKEN", token)
-    try:
-        with urllib.request.urlopen(req) as response:
-            return json.loads(response.read().decode())
-    except urllib.error.URLError as e:
-        print_error(f"API request failed: {e}")
-        sys.exit(1)
-
-
 def main():
     project_root = change_to_project_root()
 
-    parser = argparse.ArgumentParser(
-        description="Download and install the latest Yocto SDK from GitLab Package Registry."
-    )
     default_dest = str(project_root.parent / "yocto-dev" / "downloads")
+    parser = argparse.ArgumentParser(
+        description="Download and install the latest Yocto SDK from GitHub Releases."
+    )
     parser.add_argument(
         "--dest",
         default=default_dest,
         help=f"Destination directory for the downloaded .sh installer (default: {default_dest})",
     )
+    parser.add_argument(
+        "--version",
+        default="sdk-latest",
+        help="Specific tag to download. Defaults to 'sdk-latest'.",
+    )
     args = parser.parse_args()
 
-    gitlab_token = os.environ.get("GITLAB_TOKEN")
-    project_id = os.environ.get("GITLAB_PROJECT_ID")
-
-    if not gitlab_token or not project_id:
-        print_error("Missing GITLAB_TOKEN or GITLAB_PROJECT_ID in .env file.")
-        print_info("Make sure your .env file is set up correctly.")
-        sys.exit(1)
-
-    print_info("Querying GitLab API for the latest SDK package...")
-
-    packages_url = f"https://gitlab.com/api/v4/projects/{project_id}/packages?package_name=yocto-sdk&sort=desc&order_by=created_at"
-    packages = fetch_json(packages_url, gitlab_token)
-
-    if not packages:
-        print_error("No 'yocto-sdk' package found in the GitLab Registry.")
-        sys.exit(1)
-
-    latest_package = packages[0]
-    package_id = latest_package["id"]
-    version = latest_package["version"]
-
-    print_info(f"Found latest SDK version: {version} (Package ID: {package_id})")
-
-    files_url = f"https://gitlab.com/api/v4/projects/{project_id}/packages/{package_id}/package_files"
-    package_files = fetch_json(files_url, gitlab_token)
-
-    sh_files = [f for f in package_files if f["file_name"].endswith(".sh")]
-    if not sh_files:
-        print_error(f"No .sh installer found in package version {version}.")
-        sys.exit(1)
-
-    latest_file = max(sh_files, key=lambda x: x["created_at"])
-    filename = latest_file["file_name"]
-
-    print_info(f"Latest SDK file identified: {filename}")
-
-    download_url = f"https://gitlab.com/api/v4/projects/{project_id}/packages/generic/yocto-sdk/{version}/{filename}"
+    print_info("Fetching the SDK from GitHub Releases...")
 
     dest_dir = Path(args.dest)
     dest_dir.mkdir(parents=True, exist_ok=True)
-    dest_file = dest_dir / filename
 
-    print_info(f"Downloading to {dest_file}...")
-    print_info("This might take a while depending on your network connection...")
+    for old_file in dest_dir.glob("*.sh"):
+        old_file.unlink()
 
-    curl_cmd = [
-        "curl",
-        "--progress-bar",
-        "--header",
-        f"PRIVATE-TOKEN: {gitlab_token}",
-        "-o",
-        str(dest_file),
-        download_url,
-    ]
+    gh_cmd = ["gh", "release", "download", args.version]
+    gh_cmd.extend(["--pattern", "*.sh", "--dir", str(dest_dir), "--clobber"])
 
-    run_command(
-        curl_cmd, fail_msg="Download failed. Check your network or GitLab token."
+    print_info(
+        "Downloading... This might take a while depending on your network connection..."
     )
+    run_command(
+        gh_cmd,
+        fail_msg="Download failed. Ensure 'gh' is authenticated and the release exists.",
+    )
+
+    downloaded_files = list(dest_dir.glob("*.sh"))
+    if not downloaded_files:
+        print_error("Failed to find the downloaded .sh file.")
+        sys.exit(1)
+
+    dest_file = downloaded_files[0]
+    print_info(f"Downloaded SDK file identified: {dest_file.name}")
 
     dest_file.chmod(0o755)
     print_success("SDK downloaded successfully!")

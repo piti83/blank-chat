@@ -1,0 +1,123 @@
+name: blank-chat ci
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+env:
+  DEBIAN_FRONTEND: noninteractive
+  CMAKE_EXPORT_COMPILE_COMMANDS: "ON"
+
+permissions:
+  contents: write
+
+jobs:
+  static_analysis:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt-get update -y && sudo apt-get install -y cmake ninja-build python3 g++ gcc clang clang-format clang-tidy cppcheck
+      - name: Format Check
+        run: |
+          python3 scripts/format.py linux-debug
+          git diff --exit-code || (echo "Code formatting issues found." && exit 1)
+      - name: Cppcheck Analysis
+        run: cppcheck --enable=all --error-exitcode=1 --suppress=missingIncludeSystem -I libs/crypto/primitives/include libs/ apps/
+
+  test_sanitizers:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [linux-asan, linux-ubsan, linux-tsan]
+        compiler:
+          - { cxx: g++, cc: gcc }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt-get update -y && sudo apt-get install -y cmake ninja-build python3 g++ gcc clang
+      - name: Build and Test
+        env:
+          CXX: ${{ matrix.compiler.cxx }}
+          CC: ${{ matrix.compiler.cc }}
+        run: |
+          python3 scripts/build.py ${{ matrix.preset }}
+          if [ "${{ matrix.preset }}" = "linux-tsan" ]; then
+            setarch $(uname -m) -R python3 scripts/test.py ${{ matrix.preset }}
+          else
+            python3 scripts/test.py ${{ matrix.preset }}
+          fi
+
+  test_valgrind:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt-get update -y && sudo apt-get install -y cmake ninja-build python3 g++ gcc valgrind
+      - name: Build Project
+        run: python3 scripts/build.py linux-debug
+      - name: Run Memcheck
+        run: |
+          valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all --track-origins=yes --error-exitcode=1 ./build/linux-debug/tests/blank_chat_server_tests
+          valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all --track-origins=yes --error-exitcode=1 ./build/linux-debug/tests/blank_chat_client_tests
+      - name: Run Helgrind
+        run: valgrind --tool=helgrind --error-exitcode=1 ./build/linux-debug/tests/blank_chat_server_tests
+
+  coverage:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt-get update -y && sudo apt-get install -y cmake ninja-build python3 g++ gcc gcovr jq bc
+      - name: Run Coverage
+        run: |
+          python3 scripts/coverage.py
+          gcovr --root . --filter libs/ --json coverage.json
+          COVERAGE_PCT=$(jq '.line_percent' coverage.json)
+          echo "Total Line Coverage is $COVERAGE_PCT%"
+          if [ $(echo "$COVERAGE_PCT < 95.0" | bc -l) -eq 1 ]; then
+            echo "WARNING: Code coverage $COVERAGE_PCT% is below the recommended 95.0% threshold. (Strict enforcement disabled)"
+          else
+            echo "SUCCESS: Code coverage meets requirements!"
+          fi
+      - name: Upload Coverage Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: build/linux-coverage/coverage_report/
+          retention-days: 30
+
+  build_cross_compile:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt-get update -y && sudo apt-get install -y cmake ninja-build python3 g++ gcc
+      - name: Test Yocto Build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 scripts/download_sdk.py
+          python3 scripts/build.py yocto-debug
+
+  release:
+    runs-on: ubuntu-24.04
+    needs:
+      [static_analysis, test_sanitizers, test_valgrind, build_cross_compile]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt-get update -y && sudo apt-get install -y cmake ninja-build python3 g++ gcc
+      - name: Build Release
+        run: python3 scripts/build.py linux-static-release
+      - name: Upload Release Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: blank-chat-release-${{ github.sha }}
+          path: |
+            build/linux-static-release/apps/blank_chat_server
+            build/linux-static-release/apps/blank_chat_client
+          retention-days: 30
