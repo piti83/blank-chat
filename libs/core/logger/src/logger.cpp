@@ -1,5 +1,6 @@
-#include "log_level.h"
 #include "logger.h"
+
+#include "log_level.h"
 
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>

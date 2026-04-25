@@ -1,129 +1,126 @@
 name: blank-chat ci
 
 on:
-  push:
-    branches: ["main"]
-  pull_request:
-    branches: ["main"]
+    push:
+        branches: ["main"]
+    pull_request:
+        branches: ["main"]
 
 env:
-  DEBIAN_FRONTEND: noninteractive
-  CMAKE_EXPORT_COMPILE_COMMANDS: "ON"
-  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    DEBIAN_FRONTEND: noninteractive
+    CMAKE_EXPORT_COMPILE_COMMANDS: "ON"
+    GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 permissions:
-  contents: write
+    contents: write
 
 jobs:
-  static_analysis:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install dependencies
-        run: sudo apt-get update -y && sudo apt-get install -y cmake ninja-build python3 clang-format clang-tidy cppcheck
-      - name: Install Yocto SDK
-        run: python3 scripts/download_sdk.py
-      - name: Format Check
-        run: |
-          source ../yocto-dev/sdk/environment-setup-*
-          python3 scripts/format.py yocto-debug
-          git diff --exit-code || (echo "Code formatting issues found." && exit 1)
-      - name: Cppcheck Analysis
-        run: |
-          source ../yocto-dev/sdk/environment-setup-*
-          python3 scripts/build.py yocto-debug -c
-          cppcheck --enable=all --error-exitcode=1 --suppress=missingIncludeSystem -I libs/crypto/primitives/include libs/ apps/
+    static_analysis:
+        runs-on: ubuntu-24.04
+        steps:
+            - uses: actions/checkout@v4
+            - name: Install dependencies
+              run: sudo apt-get update -y && sudo apt-get install -y cmake ninja-build python3 clang-format clang-tidy cppcheck
+            - name: Install Yocto SDK
+              run: python3 scripts/download_sdk.py
+            - name: Format Check
+              run: |
+                  source ../yocto-dev/sdk/environment-setup-*
+                  python3 scripts/format.py yocto-debug
+                  git diff --exit-code || (echo "Code formatting issues found." && exit 1)
+            - name: Cppcheck Analysis
+              run: |
+                  source ../yocto-dev/sdk/environment-setup-*
+                  python3 scripts/build.py yocto-debug -c
+                  cppcheck --enable=all --error-exitcode=1 --suppress=missingIncludeSystem -I libs/crypto/primitives/include libs/ apps/
 
-  test_sanitizers:
-    runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        preset: [yocto-asan, yocto-ubsan, yocto-tsan]
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install dependencies
-        run: sudo apt-get update -y && sudo apt-get install -y cmake ninja-build python3
-      - name: Install Yocto SDK
-        run: python3 scripts/download_sdk.py
-      - name: Build and Test
-        run: |
-          source ../yocto-dev/sdk/environment-setup-*
-          python3 scripts/build.py ${{ matrix.preset }} -c
-          if [ "${{ matrix.preset }}" = "yocto-tsan" ]; then
-            # Zabezpieczenie ASLR w GitHub Actions dla Thread Sanitizera
-            setarch $(uname -m) -R python3 scripts/test.py ${{ matrix.preset }}
-          else
-            python3 scripts/test.py ${{ matrix.preset }}
-          fi
+    test_sanitizers:
+        runs-on: ubuntu-24.04
+        strategy:
+            fail-fast: false
+            matrix:
+                preset: [yocto-asan, yocto-ubsan, yocto-tsan]
+        steps:
+            - uses: actions/checkout@v4
+            - name: Install dependencies
+              run: sudo apt-get update -y && sudo apt-get install -y cmake ninja-build python3
+            - name: Install Yocto SDK
+              run: python3 scripts/download_sdk.py
+            - name: Build and Test
+              run: |
+                  source ../yocto-dev/sdk/environment-setup-*
+                  python3 scripts/build.py ${{ matrix.preset }} -c
+                  if [ "${{ matrix.preset }}" = "yocto-tsan" ]; then
+                    setarch $(uname -m) -R python3 scripts/test.py ${{ matrix.preset }}
+                  else
+                    python3 scripts/test.py ${{ matrix.preset }}
+                  fi
 
-  test_valgrind:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install dependencies
-        run: sudo apt-get update -y && sudo apt-get install -y cmake ninja-build python3 valgrind
-      - name: Install Yocto SDK
-        run: python3 scripts/download_sdk.py
-      - name: Build Project
-        run: |
-          source ../yocto-dev/sdk/environment-setup-*
-          python3 scripts/build.py yocto-debug -c
-      - name: Run Memcheck & Helgrind
-        run: |
-          source ../yocto-dev/sdk/environment-setup-*
-          # Wykorzystujemy nasz nowy skrypt valgrind.py
-          python3 scripts/valgrind.py memcheck
-          python3 scripts/valgrind.py helgrind
+    test_valgrind:
+        runs-on: ubuntu-24.04
+        steps:
+            - uses: actions/checkout@v4
+            - name: Install dependencies
+              run: sudo apt-get update -y && sudo apt-get install -y cmake ninja-build python3 valgrind
+            - name: Install Yocto SDK
+              run: python3 scripts/download_sdk.py
+            - name: Build Project
+              run: |
+                  source ../yocto-dev/sdk/environment-setup-*
+                  python3 scripts/build.py yocto-debug -c
+            - name: Run Memcheck & Helgrind
+              run: |
+                  source ../yocto-dev/sdk/environment-setup-*
+                  python3 scripts/valgrind.py memcheck
+                  python3 scripts/valgrind.py helgrind
 
-  coverage:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install dependencies
-        run: sudo apt-get update -y && sudo apt-get install -y cmake ninja-build python3 gcovr jq bc
-      - name: Install Yocto SDK
-        run: python3 scripts/download_sdk.py
-      - name: Run Coverage
-        run: |
-          source ../yocto-dev/sdk/environment-setup-*
-          python3 scripts/coverage.py
+    coverage:
+        runs-on: ubuntu-24.04
+        steps:
+            - uses: actions/checkout@v4
+            - name: Install dependencies
+              run: sudo apt-get update -y && sudo apt-get install -y cmake ninja-build python3 gcovr jq bc
+            - name: Install Yocto SDK
+              run: python3 scripts/download_sdk.py
+            - name: Run Coverage
+              run: |
+                  source ../yocto-dev/sdk/environment-setup-*
+                  python3 scripts/coverage.py
 
-          gcovr --root . --filter libs/ --json coverage.json --gcov-executable ${CROSS_COMPILE}gcov
+                  gcovr --root . --filter libs/ --json coverage.json --gcov-executable ${CROSS_COMPILE}gcov
 
-          COVERAGE_PCT=$(jq '.line_percent' coverage.json)
-          echo "Total Line Coverage is $COVERAGE_PCT%"
-          if [ $(echo "$COVERAGE_PCT < 95.0" | bc -l) -eq 1 ]; then
-            echo "WARNING: Code coverage $COVERAGE_PCT% is below the recommended 95.0% threshold. (Strict enforcement disabled)"
-          else
-            echo "SUCCESS: Code coverage meets requirements!"
-          fi
-      - name: Upload Coverage Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: build/yocto-coverage/coverage_report/
-          retention-days: 30
+                  COVERAGE_PCT=$(jq '.line_percent' coverage.json)
+                  echo "Total Line Coverage is $COVERAGE_PCT%"
+                  if [ $(echo "$COVERAGE_PCT < 95.0" | bc -l) -eq 1 ]; then
+                    echo "WARNING: Code coverage $COVERAGE_PCT% is below the recommended 95.0% threshold. (Strict enforcement disabled)"
+                  else
+                    echo "SUCCESS: Code coverage meets requirements!"
+                  fi
+            - name: Upload Coverage Artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: coverage-report
+                  path: build/yocto-coverage/coverage_report/
+                  retention-days: 30
 
-  release:
-    runs-on: ubuntu-24.04
-    needs: [static_analysis, test_sanitizers, test_valgrind, coverage]
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install dependencies
-        run: sudo apt-get update -y && sudo apt-get install -y cmake ninja-build python3
-      - name: Install Yocto SDK
-        run: python3 scripts/download_sdk.py
-      - name: Build Release
-        run: |
-          source ../yocto-dev/sdk/environment-setup-*
-          # Kompilujemy na presecie zdefiniowanym dla wydania statycznego w SDK
-          python3 scripts/build.py yocto-release -c
-      - name: Upload Release Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: blank-chat-release-${{ github.sha }}
-          path: |
-            build/yocto-release/apps/blank_chat_server
-            build/yocto-release/apps/blank_chat_client
-          retention-days: 30
+    release:
+        runs-on: ubuntu-24.04
+        needs: [static_analysis, test_sanitizers, test_valgrind, coverage]
+        steps:
+            - uses: actions/checkout@v4
+            - name: Install dependencies
+              run: sudo apt-get update -y && sudo apt-get install -y cmake ninja-build python3
+            - name: Install Yocto SDK
+              run: python3 scripts/download_sdk.py
+            - name: Build Release
+              run: |
+                  source ../yocto-dev/sdk/environment-setup-*
+                  python3 scripts/build.py yocto-release -c
+            - name: Upload Release Artifacts
+              uses: actions/upload-artifact@v4
+              with:
+                  name: blank-chat-release-${{ github.sha }}
+                  path: |
+                      build/yocto-release/apps/blank_chat_server
+                      build/yocto-release/apps/blank_chat_client
+                  retention-days: 30

@@ -30,7 +30,7 @@ def main():
         print_info(f"Run: python3 ./scripts/build.py {preset} first")
         sys.exit(1)
 
-    executable = build_dir / "tests" / "blank_chat_server_tests"
+    executable = build_dir / "tests" / "blank_chat_ut"
 
     if not executable.exists():
         print_error(f"Test executable not found: {executable}")
