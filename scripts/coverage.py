@@ -1,13 +1,24 @@
 #!/usr/bin/env python3
 
+import os
+import sys
 from pathlib import Path
 
-from utils import change_to_project_root, print_info, print_success, run_command
+from utils import (
+    change_to_project_root,
+    load_yocto_env,
+    print_info,
+    print_success,
+    run_command,
+)
 
 
 def main():
     change_to_project_root()
-    preset = "linux-coverage"
+    preset = "yocto-coverage"
+    if preset.startswith("yocto-") and "OECORE_NATIVE_SYSROOT" not in os.environ:
+        if not load_yocto_env():
+            sys.exit(1)
     build_dir = Path("build") / preset
 
     print_info(f"Setting up environment for code coverage (Preset: {preset})...")

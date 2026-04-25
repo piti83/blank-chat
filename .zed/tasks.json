@@ -5,43 +5,37 @@
   {
     "label": "Build: Debug",
     "command": "python3",
-    "args": ["scripts/build.py", "linux-debug"],
+    "args": ["scripts/build.py", "yocto-debug"],
     "use_new_terminal": false,
   },
   {
     "label": "Build: Release",
     "command": "python3",
-    "args": ["scripts/build.py", "linux-static-release"],
+    "args": ["scripts/build.py", "yocto-release"],
     "use_new_terminal": false,
   },
   {
     "label": "Build: ASan",
     "command": "python3",
-    "args": ["scripts/build.py", "linux-asan"],
+    "args": ["scripts/build.py", "yocto-asan"],
     "use_new_terminal": false,
   },
   {
     "label": "Build: TSan",
     "command": "python3",
-    "args": ["scripts/build.py", "linux-tsan"],
+    "args": ["scripts/build.py", "yocto-tsan"],
     "use_new_terminal": false,
   },
   {
     "label": "Build: UBSan",
     "command": "python3",
-    "args": ["scripts/build.py", "linux-ubsan"],
+    "args": ["scripts/build.py", "yocto-ubsan"],
     "use_new_terminal": false,
   },
   {
     "label": "Build: Coverage",
     "command": "python3",
-    "args": ["scripts/build.py", "linux-coverage"],
-    "use_new_terminal": false,
-  },
-  {
-    "label": "Build: Yocto SDK",
-    "command": "python3",
-    "args": ["scripts/build.py", "yocto-debug"],
+    "args": ["scripts/build.py", "yocto-coverage"],
     "use_new_terminal": false,
   },
 
@@ -51,31 +45,13 @@
   {
     "label": "Run Server: Debug",
     "command": "python3",
-    "args": ["scripts/run.py", "server", "linux-debug"],
-    "use_new_terminal": true,
-  },
-  {
-    "label": "Run Server: Release",
-    "command": "python3",
-    "args": ["scripts/run.py", "server", "linux-static-release"],
+    "args": ["scripts/run.py", "server", "yocto-debug"],
     "use_new_terminal": true,
   },
   {
     "label": "Run Server: ASan",
     "command": "python3",
-    "args": ["scripts/run.py", "server", "linux-asan"],
-    "use_new_terminal": true,
-  },
-  {
-    "label": "Run Server: TSan",
-    "command": "python3",
-    "args": ["scripts/run.py", "server", "linux-tsan"],
-    "use_new_terminal": true,
-  },
-  {
-    "label": "Run Server: UBSan",
-    "command": "python3",
-    "args": ["scripts/run.py", "server", "linux-ubsan"],
+    "args": ["scripts/run.py", "server", "yocto-asan"],
     "use_new_terminal": true,
   },
 
@@ -85,31 +61,13 @@
   {
     "label": "Run Client: Debug",
     "command": "python3",
-    "args": ["scripts/run.py", "client", "linux-debug"],
-    "use_new_terminal": true,
-  },
-  {
-    "label": "Run Client: Release",
-    "command": "python3",
-    "args": ["scripts/run.py", "client", "linux-static-release"],
+    "args": ["scripts/run.py", "client", "yocto-debug"],
     "use_new_terminal": true,
   },
   {
     "label": "Run Client: ASan",
     "command": "python3",
-    "args": ["scripts/run.py", "client", "linux-asan"],
-    "use_new_terminal": true,
-  },
-  {
-    "label": "Run Client: TSan",
-    "command": "python3",
-    "args": ["scripts/run.py", "client", "linux-tsan"],
-    "use_new_terminal": true,
-  },
-  {
-    "label": "Run Client: UBSan",
-    "command": "python3",
-    "args": ["scripts/run.py", "client", "linux-ubsan"],
+    "args": ["scripts/run.py", "client", "yocto-asan"],
     "use_new_terminal": true,
   },
 
@@ -119,37 +77,41 @@
   {
     "label": "Test: Debug",
     "command": "python3",
-    "args": ["scripts/test.py", "linux-debug"],
-    "use_new_terminal": true,
-  },
-  {
-    "label": "Test: Release",
-    "command": "python3",
-    "args": ["scripts/test.py", "linux-static-release"],
+    "args": ["scripts/test.py", "yocto-debug"],
     "use_new_terminal": true,
   },
   {
     "label": "Test: ASan",
     "command": "python3",
-    "args": ["scripts/test.py", "linux-asan"],
+    "args": ["scripts/test.py", "yocto-asan"],
     "use_new_terminal": true,
   },
   {
     "label": "Test: TSan",
     "command": "python3",
-    "args": ["scripts/test.py", "linux-tsan"],
+    "args": ["scripts/test.py", "yocto-tsan"],
     "use_new_terminal": true,
   },
   {
     "label": "Test: UBSan",
     "command": "python3",
-    "args": ["scripts/test.py", "linux-ubsan"],
+    "args": ["scripts/test.py", "yocto-ubsan"],
+    "use_new_terminal": true,
+  },
+
+  // ==========================================
+  // VALGRIND / DYNAMIC ANALYSIS
+  // ==========================================
+  {
+    "label": "Valgrind: Memcheck (Leaks)",
+    "command": "python3",
+    "args": ["scripts/valgrind.py", "memcheck"],
     "use_new_terminal": true,
   },
   {
-    "label": "Test: Yocto SDK",
+    "label": "Valgrind: Helgrind (Threads)",
     "command": "python3",
-    "args": ["scripts/test.py", "yocto-debug"],
+    "args": ["scripts/valgrind.py", "helgrind"],
     "use_new_terminal": true,
   },
 

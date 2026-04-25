@@ -73,7 +73,7 @@ def run_command(cmd, cwd=None, exit_on_fail=True, fail_msg="Command failed."):
         sys.exit(130)
 
 
-def get_arg(args, position=1, default="linux-debug"):
+def get_arg(args, position=1, default="yocto-debug"):
     """Safely fetch a command line argument by position."""
     return args[position] if len(args) > position else default
 

@@ -57,7 +57,7 @@ def main():
         print_error("Failed to find the downloaded .sh file.")
         sys.exit(1)
 
-    dest_file = downloaded_files[0]
+    dest_file = max(downloaded_files, key=os.path.getmtime)
     print_info(f"Downloaded SDK file identified: {dest_file.name}")
 
     dest_file.chmod(0o755)

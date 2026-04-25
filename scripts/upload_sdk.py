@@ -37,7 +37,7 @@ def main():
 
     print_info("Searching for the SDK installation script...")
 
-    sdk_files = list(sdk_dir.glob("poky-glibc-x86_64-blankchat-image-minimal-*.sh"))
+    sdk_files = list(sdk_dir.glob("poky-glibc-x86_64-blankchat-image-server-*.sh"))
 
     if not sdk_files:
         print_error("No SDK .sh file found in the deploy directory.")
@@ -48,37 +48,36 @@ def main():
     print_info(f"Found SDK file: {filename}")
 
     tag = "sdk-latest"
-    print_info(f"Uploading to GitHub Releases (Tag: {tag})...")
-    print_info(
-        "This might take a while depending on your upload speed (SDK is usually large)."
-    )
+    print_info(f"Checking for existing GitHub Release (Tag: {tag})...")
 
     check_release = subprocess.run(
         ["gh", "release", "view", tag], capture_output=True, text=True
     )
 
-    if check_release.returncode != 0:
-        print_info(f"Release {tag} does not exist. Creating it...")
+    if check_release.returncode == 0:
+        print_info(f"Release {tag} exists. Deleting it to clean up old artifacts...")
         run_command(
-            [
-                "gh",
-                "release",
-                "create",
-                tag,
-                str(sdk_file),
-                "--title",
-                "Yocto SDK (Latest)",
-                "--notes",
-                "Automated Yocto SDK rolling release.",
-            ],
-            fail_msg=f"Failed to create release {tag} and upload SDK. Make sure GH_TOKEN is set in CI or you are logged into gh cli locally.",
+            ["gh", "release", "delete", tag, "-y", "--cleanup-tag"],
+            fail_msg=f"Failed to delete old release {tag}.",
         )
-    else:
-        print_info(f"Release {tag} exists. Uploading file...")
-        run_command(
-            ["gh", "release", "upload", tag, str(sdk_file), "--clobber"],
-            fail_msg=f"Failed to upload SDK to release {tag}.",
-        )
+
+    print_info(f"Creating fresh release {tag} and uploading file...")
+    print_info("This might take a while depending on your upload speed.")
+
+    run_command(
+        [
+            "gh",
+            "release",
+            "create",
+            tag,
+            str(sdk_file),
+            "--title",
+            "Yocto SDK (Latest)",
+            "--notes",
+            "Automated Yocto SDK rolling release.",
+        ],
+        fail_msg=f"Failed to create release {tag} and upload SDK. Make sure GH_TOKEN is set in CI or you are logged into gh cli locally.",
+    )
 
     print_success("SDK uploaded successfully to GitHub Releases!")
 

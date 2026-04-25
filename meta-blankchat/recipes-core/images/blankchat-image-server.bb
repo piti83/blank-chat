@@ -20,3 +20,5 @@ IMAGE_INSTALL += " \
     net-tools \
     linux-firmware \
 "
+
+TOOLCHAIN_TARGET_TASK:append = " libasan-dev libtsan-dev libubsan-dev valgrind"

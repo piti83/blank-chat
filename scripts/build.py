@@ -21,8 +21,8 @@ def main():
     parser.add_argument(
         "preset",
         nargs="?",
-        default="linux-debug",
-        help="CMake preset to use (default: linux-debug)",
+        default="yocto-debug",
+        help="CMake preset to use (default: yocto-debug)",
     )
     parser.add_argument(
         "-c",
@@ -32,7 +32,7 @@ def main():
     )
     args = parser.parse_args()
 
-    if args.preset == "yocto-debug" and "OECORE_NATIVE_SYSROOT" not in os.environ:
+    if args.preset.startswith("yocto-") and "OECORE_NATIVE_SYSROOT" not in os.environ:
         if not load_yocto_env():
             sys.exit(1)
 

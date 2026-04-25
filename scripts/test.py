@@ -1,14 +1,27 @@
 #!/usr/bin/env python3
 
+import os
 import sys
 from pathlib import Path
 
-from utils import change_to_project_root, get_arg, print_error, print_info, run_command
+from utils import (
+    change_to_project_root,
+    get_arg,
+    load_yocto_env,
+    print_error,
+    print_info,
+    run_command,
+)
 
 
 def main():
     change_to_project_root()
-    preset = get_arg(sys.argv, position=1, default="linux-debug")
+    preset = get_arg(sys.argv, position=1, default="yocto-debug")
+
+    if preset.startswith("yocto-") and "OECORE_NATIVE_SYSROOT" not in os.environ:
+        if not load_yocto_env():
+            sys.exit(1)
+
     build_dir = Path("build") / preset
 
     if not build_dir.is_dir():
@@ -18,7 +31,6 @@ def main():
 
     print_info(f"Running unit tests (Preset: {preset})...")
 
-    # Run ctest from inside the build directory
     run_command(
         ["ctest", "--output-on-failure"],
         cwd=build_dir,
