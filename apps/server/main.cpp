@@ -1,13 +1,10 @@
-#include <iostream>
-#include <primitives.hpp>
+#include "logger.h"
+
 #include <sodium.h>
 
 auto main() -> int
 {
-    std::cout << "Running server...\n";
-    bc::crypto::primitives::Primitives primitives;
-    if (sodium_init() == 0) {
-        std::cout << "Sodium linking works...\n";
-    }
+    bc::core::logger::Logger::Init();
+    BC_INFO("Running server...");
     return 0;
 }

@@ -51,9 +51,7 @@ Session.vim
 *.suo
 *.user
 
-.zed/*
-!.zed/tasks.json
-!.zed/settings.json
+.zed/**
 
 .idea/
 cmake-build-*/

@@ -8,7 +8,8 @@ function(apply_yocto_linker_flags target_name)
             list(GET LD_LINUX 0 LD_LINUX_PATH)
             target_link_options(${target_name} PRIVATE
                 "-Wl,-dynamic-linker=${LD_LINUX_PATH}"
-                "-Wl,-rpath=${YOCTO_SYSROOT}/lib:${YOCTO_SYSROOT}/usr/lib"
+                "-Wl,--disable-new-dtags"
+                "-Wl,-rpath=${YOCTO_SYSROOT}/lib:${YOCTO_SYSROOT}/usr/lib:${YOCTO_SYSROOT}/lib64:${YOCTO_SYSROOT}/usr/lib64"
             )
         endif()
     endif()
