@@ -74,6 +74,8 @@ option(ENABLE_CLANG_TIDY "Enable clang-tidy static analysis" ON)
 
 find_program(CLANG_TIDY_EXE NAMES "clang-tidy")
 
+find_program(CLANG_TIDY_EXE NAMES "clang-tidy")
+
 if(CLANG_TIDY_EXE AND ENABLE_CLANG_TIDY)
   set(CLANG_TIDY_ARGS
     "--config-file=${CMAKE_CURRENT_SOURCE_DIR}/.clang-tidy"
@@ -81,7 +83,9 @@ if(CLANG_TIDY_EXE AND ENABLE_CLANG_TIDY)
   )
 
   if(DEFINED ENV{OECORE_TARGET_SYSROOT})
-    file(GLOB YOCTO_CXX_DIRS "$ENV{OECORE_TARGET_SYSROOT}/usr/include/c++/*")
+    set(YOCTO_SYSROOT "$ENV{OECORE_TARGET_SYSROOT}")
+
+    file(GLOB YOCTO_CXX_DIRS "${YOCTO_SYSROOT}/usr/include/c++/*")
     if(YOCTO_CXX_DIRS)
       list(GET YOCTO_CXX_DIRS 0 YOCTO_CXX_INC)
       list(APPEND CLANG_TIDY_ARGS
@@ -90,8 +94,17 @@ if(CLANG_TIDY_EXE AND ENABLE_CLANG_TIDY)
       )
       message(STATUS "Yocto SDK detected. Forwarding C++ headers to clang-tidy: ${YOCTO_CXX_INC}")
     endif()
+
+    file(GLOB LD_LINUX "${YOCTO_SYSROOT}/lib/ld-linux-x86-64.so.2" "${YOCTO_SYSROOT}/lib64/ld-linux-x86-64.so.2")
+    if(LD_LINUX)
+      list(GET LD_LINUX 0 LD_LINUX_PATH)
+      add_link_options(
+        "-Wl,-dynamic-linker=${LD_LINUX_PATH}"
+        "-Wl,-rpath=${YOCTO_SYSROOT}/lib:${YOCTO_SYSROOT}/usr/lib"
+      )
+      message(STATUS "Yocto SDK Out-of-Tree detected. ELF interpreter set to: ${LD_LINUX_PATH}")
+    endif()
   endif()
-  # --------------------------
 
   set(CMAKE_CXX_CLANG_TIDY ${CLANG_TIDY_EXE} ${CLANG_TIDY_ARGS})
 elseif(NOT ENABLE_CLANG_TIDY)
