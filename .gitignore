@@ -70,5 +70,6 @@ compile_commands.json
 
 .clj-kondo/
 .lsp/
+.cache/
 
 .env

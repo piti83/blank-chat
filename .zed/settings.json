@@ -27,6 +27,7 @@
           "--clang-tidy",
           "--completion-style=detailed",
           "--header-insertion=iwyu",
+          "--query-driver=**/*g++*",
         ],
       },
     },

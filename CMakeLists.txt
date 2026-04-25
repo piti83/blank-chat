@@ -46,11 +46,19 @@ if(USE_TSAN)
 endif()
 
 if(USE_COVERAGE)
-  add_compile_options(--coverage -O0 -g)
+  add_compile_options(--coverage -O0 -g -U_FORTIFY_SOURCE)
   add_link_options(--coverage)
   message(STATUS "Code Coverage enabled (--coverage)")
 
   find_program(GCOVR_EXE NAMES gcovr)
+
+  if(DEFINED ENV{CROSS_COMPILE})
+    set(GCOV_CMD "$ENV{CROSS_COMPILE}gcov")
+  else()
+    set(GCOV_CMD "gcov")
+  endif()
+  # ---------------------------------------
+
   if(GCOVR_EXE)
     add_custom_target(coverage
             COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
@@ -59,11 +67,12 @@ if(USE_COVERAGE)
                 --root ${CMAKE_SOURCE_DIR}
                 --filter "${CMAKE_SOURCE_DIR}/libs"
                 --exclude-unreachable-branches
-                --branches
+                --txt-metric branch
                 --html-details ${CMAKE_BINARY_DIR}/coverage_report/index.html
                 --print-summary
+                --gcov-executable ${GCOV_CMD}
             WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-            COMMENT "Running tests and generating HTML coverage report..."
+            COMMENT "Running tests and generating HTML coverage report using ${GCOV_CMD}..."
         )
   else()
     message(WARNING "gcovr not found! 'coverage' target will not be created.")
@@ -74,11 +83,38 @@ option(ENABLE_CLANG_TIDY "Enable clang-tidy static analysis" ON)
 
 find_program(CLANG_TIDY_EXE NAMES "clang-tidy")
 
+find_program(CLANG_TIDY_EXE NAMES "clang-tidy")
+
 if(CLANG_TIDY_EXE AND ENABLE_CLANG_TIDY)
   set(CLANG_TIDY_ARGS
     "--config-file=${CMAKE_CURRENT_SOURCE_DIR}/.clang-tidy"
     "--header-filter=${CMAKE_CURRENT_SOURCE_DIR}/(libs|apps|tests)/.*"
   )
+
+  if(DEFINED ENV{OECORE_TARGET_SYSROOT})
+    set(YOCTO_SYSROOT "$ENV{OECORE_TARGET_SYSROOT}")
+
+    file(GLOB YOCTO_CXX_DIRS "${YOCTO_SYSROOT}/usr/include/c++/*")
+    if(YOCTO_CXX_DIRS)
+      list(GET YOCTO_CXX_DIRS 0 YOCTO_CXX_INC)
+      list(APPEND CLANG_TIDY_ARGS
+        "--extra-arg=-isystem${YOCTO_CXX_INC}"
+        "--extra-arg=-isystem${YOCTO_CXX_INC}/x86_64-poky-linux"
+      )
+      message(STATUS "Yocto SDK detected. Forwarding C++ headers to clang-tidy: ${YOCTO_CXX_INC}")
+    endif()
+
+    file(GLOB LD_LINUX "${YOCTO_SYSROOT}/lib/ld-linux-x86-64.so.2" "${YOCTO_SYSROOT}/lib64/ld-linux-x86-64.so.2")
+    if(LD_LINUX)
+      list(GET LD_LINUX 0 LD_LINUX_PATH)
+      add_link_options(
+        "-Wl,-dynamic-linker=${LD_LINUX_PATH}"
+        "-Wl,-rpath=${YOCTO_SYSROOT}/lib:${YOCTO_SYSROOT}/usr/lib"
+      )
+      message(STATUS "Yocto SDK Out-of-Tree detected. ELF interpreter set to: ${LD_LINUX_PATH}")
+    endif()
+  endif()
+
   set(CMAKE_CXX_CLANG_TIDY ${CLANG_TIDY_EXE} ${CLANG_TIDY_ARGS})
 elseif(NOT ENABLE_CLANG_TIDY)
   message(STATUS "clang-tidy is explicitly disabled via ENABLE_CLANG_TIDY.")

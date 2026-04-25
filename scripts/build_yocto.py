@@ -8,7 +8,6 @@ from utils import change_to_project_root, print_info, print_success, run_command
 def main():
     project_root = change_to_project_root()
 
-    # Configure command line arguments
     parser = argparse.ArgumentParser(
         description="Automate Yocto environment setup and building."
     )
@@ -17,13 +16,18 @@ def main():
         action="store_true",
         help="Generate the cross-compilation SDK instead of the full system image.",
     )
+    parser.add_argument(
+        "--target",
+        choices=["server", "client", "both"],
+        default="both",
+        help="Which production ISO to build (default: both).",
+    )
     args = parser.parse_args()
 
     yocto_base = project_root.parent / "yocto-dev"
     poky_dir = yocto_base / "poky"
     meta_oe_dir = yocto_base / "meta-openembedded"
     build_dir = poky_dir / "build"
-
     meta_blankchat_dir = project_root / "meta-blankchat"
 
     print_info("Verifying Yocto environment...")
@@ -57,31 +61,35 @@ def main():
             ]
         )
 
-    # Determine what we are building based on the flag
     if args.sdk:
-        bitbake_target = "bitbake -c populate_sdk blankchat-image-minimal"
+        bitbake_target = "bitbake -c populate_sdk blankchat-image-server"
         success_msg = "Yocto: SDK generated successfully! Check yocto-dev/poky/build/tmp/deploy/sdk/"
         print_info("Starting BitBake engine to generate SDK...")
     else:
-        bitbake_target = "bitbake blankchat-image-minimal"
-        success_msg = "Yocto: System image generated successfully!"
-        print_info("Starting BitBake engine to build the image...")
+        if args.target == "server":
+            bitbake_target = "bitbake blankchat-image-server"
+            success_msg = "Yocto: Server ISO generated successfully!"
+        elif args.target == "client":
+            bitbake_target = "bitbake blankchat-image-client"
+            success_msg = "Yocto: Client ISO generated successfully!"
+        else:
+            bitbake_target = "bitbake blankchat-image-server blankchat-image-client"
+            success_msg = "Yocto: BOTH Server and Client ISOs generated successfully!"
+        print_info(f"Starting BitBake engine to build the {args.target} image(s)...")
 
     bash_command = f"""
         cd {poky_dir}
         source oe-init-build-env {build_dir}
 
-        # Add layers. Redirect errors to /dev/null and add '|| true'
-        # so the script doesn't fail if layers are already added.
         bitbake-layers add-layer {meta_oe_dir}/meta-oe 2>/dev/null || true
         bitbake-layers add-layer {meta_blankchat_dir} 2>/dev/null || true
 
-        # FIX FOR ARCH LINUX: Force Yocto to accept glibc 2.43 so it uses uninative cache
-        if ! grep -q "UNINATIVE_MAXGLIBCVERSION" conf/local.conf; then
-            echo 'UNINATIVE_MAXGLIBCVERSION = "2.43"' >> conf/local.conf
+        if ! grep -q 'MACHINE = "genericx86-64"' conf/local.conf; then
+            echo 'MACHINE = "genericx86-64"' >> conf/local.conf
         fi
 
-        # Trigger the build
+        sed -i '/UNINATIVE_MAXGLIBCVERSION/d' conf/local.conf
+
         {bitbake_target}
         """
 

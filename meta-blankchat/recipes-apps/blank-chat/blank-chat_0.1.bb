@@ -1,4 +1,4 @@
-SUMMARY = "Blank Chat Minimal Build"
+SUMMARY = "Blank Chat Application"
 LICENSE = "GPL-3.0-only"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=81525c65625e3ded655268549f061212"
 
@@ -11,4 +11,9 @@ DEPENDS = "libsodium spdlog googletest"
 
 inherit cmake pkgconfig
 
-EXTRA_OECMAKE = "-DBUILD_TESTING=OFF -DBC_ENABLE_LOGS=ON -DBUILD_CLIENT=OFF -DUSE_FETCH_CONTENT=OFF"
+EXTRA_OECMAKE = "-DBUILD_TESTING=OFF -DBC_ENABLE_LOGS=ON -DBUILD_CLIENT=ON -DBUILD_SERVER=ON -DUSE_FETCH_CONTENT=OFF"
+
+PACKAGES =+ "${PN}-server ${PN}-client"
+
+FILES:${PN}-server = "${bindir}/blank_chat_server"
+FILES:${PN}-client = "${bindir}/blank_chat_client"
