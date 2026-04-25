@@ -36,28 +36,9 @@ def main():
         print_error(f"Test executable not found: {executable}")
         sys.exit(1)
 
-    valgrind_bin = "valgrind"
-    if "OECORE_TARGET_SYSROOT" in os.environ:
-        target_sysroot = Path(os.environ["OECORE_TARGET_SYSROOT"])
-        sdk_valgrind = target_sysroot / "usr" / "bin" / "valgrind"
+    print_info(f"Running Valgrind ({tool}) on tests using SYSTEM Valgrind...")
 
-        if sdk_valgrind.exists():
-            valgrind_bin = str(sdk_valgrind)
-            print_info(f"Using isolated SDK Valgrind from: {sdk_valgrind.parent}")
-
-            valgrind_lib = target_sysroot / "usr" / "libexec" / "valgrind"
-            os.environ["VALGRIND_LIB"] = str(valgrind_lib)
-        else:
-            print_info("SDK Valgrind not found! Falling back to system valgrind...")
-
-    print_info(f"Running Valgrind ({tool}) on tests...")
-
-    valgrind_cmd = [
-        valgrind_bin,
-        f"--tool={tool}",
-        "--error-exitcode=1",
-        str(executable),
-    ]
+    valgrind_cmd = ["valgrind", f"--tool={tool}", "--error-exitcode=1", str(executable)]
 
     if tool == "memcheck":
         valgrind_cmd.insert(2, "--leak-check=full")

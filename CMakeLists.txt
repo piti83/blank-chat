@@ -46,7 +46,7 @@ if(USE_TSAN)
 endif()
 
 if(USE_COVERAGE)
-  add_compile_options(--coverage -O0 -g)
+  add_compile_options(--coverage -O0 -g -U_FORTIFY_SOURCE)
   add_link_options(--coverage)
   message(STATUS "Code Coverage enabled (--coverage)")
 
