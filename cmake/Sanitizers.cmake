@@ -1,0 +1,20 @@
+function(enable_project_sanitizers target_name)
+    if(USE_SAFE_STL)
+        target_compile_definitions(${target_name} PRIVATE _GLIBCXX_DEBUG)
+    endif()
+
+    if(USE_ASAN)
+        target_compile_options(${target_name} PRIVATE -fsanitize=address -fno-omit-frame-pointer)
+        target_link_options(${target_name} PRIVATE -fsanitize=address)
+    endif()
+
+    if(USE_UBSAN)
+        target_compile_options(${target_name} PRIVATE -fsanitize=undefined -fno-omit-frame-pointer)
+        target_link_options(${target_name} PRIVATE -fsanitize=undefined)
+    endif()
+
+    if(USE_TSAN)
+        target_compile_options(${target_name} PRIVATE -fsanitize=thread -fno-omit-frame-pointer)
+        target_link_options(${target_name} PRIVATE -fsanitize=thread)
+    endif()
+endfunction()
