@@ -86,9 +86,11 @@ jobs:
         run: python3 scripts/download_sdk.py
       - name: Run Coverage
         run: |
-          source ../yocto-dev/sdk/environment-setup-* --gcov-executable ${CROSS_COMPILE}gcov
+          source ../yocto-dev/sdk/environment-setup-*
           python3 scripts/coverage.py
-          gcovr --root . --filter libs/ --json coverage.json
+
+          gcovr --root . --filter libs/ --json coverage.json --gcov-executable ${CROSS_COMPILE}gcov
+
           COVERAGE_PCT=$(jq '.line_percent' coverage.json)
           echo "Total Line Coverage is $COVERAGE_PCT%"
           if [ $(echo "$COVERAGE_PCT < 95.0" | bc -l) -eq 1 ]; then
