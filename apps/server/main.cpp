@@ -1,5 +1,4 @@
-#include "logger.h"
-
+#include <logger.h>
 #include <sodium.h>
 
 auto main() -> int
