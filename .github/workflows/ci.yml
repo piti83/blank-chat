@@ -86,7 +86,7 @@ jobs:
         run: python3 scripts/download_sdk.py
       - name: Run Coverage
         run: |
-          source ../yocto-dev/sdk/environment-setup-*
+          source ../yocto-dev/sdk/environment-setup-* --gcov-executable ${CROSS_COMPILE}gcov
           python3 scripts/coverage.py
           gcovr --root . --filter libs/ --json coverage.json
           COVERAGE_PCT=$(jq '.line_percent' coverage.json)
