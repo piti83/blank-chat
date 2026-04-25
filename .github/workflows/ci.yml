@@ -25,12 +25,12 @@ jobs:
         run: python3 scripts/download_sdk.py
       - name: Format Check
         run: |
-          source yocto-dev/sdk/environment-setup-*
+          source ../yocto-dev/sdk/environment-setup-*
           python3 scripts/format.py yocto-debug
           git diff --exit-code || (echo "Code formatting issues found." && exit 1)
       - name: Cppcheck Analysis
         run: |
-          source yocto-dev/sdk/environment-setup-*
+          source ../yocto-dev/sdk/environment-setup-*
           python3 scripts/build.py yocto-debug -c
           cppcheck --enable=all --error-exitcode=1 --suppress=missingIncludeSystem -I libs/crypto/primitives/include libs/ apps/
 
@@ -48,7 +48,7 @@ jobs:
         run: python3 scripts/download_sdk.py
       - name: Build and Test
         run: |
-          source yocto-dev/sdk/environment-setup-*
+          source ../yocto-dev/sdk/environment-setup-*
           python3 scripts/build.py ${{ matrix.preset }} -c
           if [ "${{ matrix.preset }}" = "yocto-tsan" ]; then
             # Zabezpieczenie ASLR w GitHub Actions dla Thread Sanitizera
@@ -67,11 +67,11 @@ jobs:
         run: python3 scripts/download_sdk.py
       - name: Build Project
         run: |
-          source yocto-dev/sdk/environment-setup-*
+          source ../yocto-dev/sdk/environment-setup-*
           python3 scripts/build.py yocto-debug -c
       - name: Run Memcheck & Helgrind
         run: |
-          source yocto-dev/sdk/environment-setup-*
+          source ../yocto-dev/sdk/environment-setup-*
           # Wykorzystujemy nasz nowy skrypt valgrind.py
           python3 scripts/valgrind.py memcheck
           python3 scripts/valgrind.py helgrind
@@ -86,7 +86,7 @@ jobs:
         run: python3 scripts/download_sdk.py
       - name: Run Coverage
         run: |
-          source yocto-dev/sdk/environment-setup-*
+          source ../yocto-dev/sdk/environment-setup-*
           python3 scripts/coverage.py
           gcovr --root . --filter libs/ --json coverage.json
           COVERAGE_PCT=$(jq '.line_percent' coverage.json)
@@ -114,7 +114,7 @@ jobs:
         run: python3 scripts/download_sdk.py
       - name: Build Release
         run: |
-          source yocto-dev/sdk/environment-setup-*
+          source ../yocto-dev/sdk/environment-setup-*
           # Kompilujemy na presecie zdefiniowanym dla wydania statycznego w SDK
           python3 scripts/build.py yocto-release -c
       - name: Upload Release Artifacts
