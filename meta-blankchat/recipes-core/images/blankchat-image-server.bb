@@ -21,4 +21,4 @@ IMAGE_INSTALL += " \
     linux-firmware \
 "
 
-TOOLCHAIN_TARGET_TASK:append = " libasan-dev libtsan-dev libubsan-dev valgrind"
+TOOLCHAIN_TARGET_TASK:append = " libasan-dev libtsan-dev libubsan-dev valgrind googletest-dev"
