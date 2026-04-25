@@ -53,18 +53,18 @@ if(USE_COVERAGE)
   find_program(GCOVR_EXE NAMES gcovr)
   if(GCOVR_EXE)
     add_custom_target(coverage
-            COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/coverage_report
-            COMMAND ${GCOVR_EXE}
-                --root ${CMAKE_SOURCE_DIR}
-                --filter "${CMAKE_SOURCE_DIR}/libs"
-                --exclude-unreachable-branches
-                --branches
-                --html-details ${CMAKE_BINARY_DIR}/coverage_report/index.html
-                --print-summary
-            WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-            COMMENT "Running tests and generating HTML coverage report..."
-        )
+        COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/coverage_report
+        COMMAND ${GCOVR_EXE}
+            --root ${CMAKE_SOURCE_DIR}
+            --filter "${CMAKE_SOURCE_DIR}/libs"
+            --exclude-unreachable-branches
+            --branches
+            --html-details ${CMAKE_BINARY_DIR}/coverage_report/index.html
+            --print-summary
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+        COMMENT "Running tests and generating HTML coverage report..."
+    )
   else()
     message(WARNING "gcovr not found! 'coverage' target will not be created.")
   endif()
@@ -79,6 +79,20 @@ if(CLANG_TIDY_EXE AND ENABLE_CLANG_TIDY)
     "--config-file=${CMAKE_CURRENT_SOURCE_DIR}/.clang-tidy"
     "--header-filter=${CMAKE_CURRENT_SOURCE_DIR}/(libs|apps|tests)/.*"
   )
+
+  if(DEFINED ENV{OECORE_TARGET_SYSROOT})
+    file(GLOB YOCTO_CXX_DIRS "$ENV{OECORE_TARGET_SYSROOT}/usr/include/c++/*")
+    if(YOCTO_CXX_DIRS)
+      list(GET YOCTO_CXX_DIRS 0 YOCTO_CXX_INC)
+      list(APPEND CLANG_TIDY_ARGS
+        "--extra-arg=-isystem${YOCTO_CXX_INC}"
+        "--extra-arg=-isystem${YOCTO_CXX_INC}/x86_64-poky-linux"
+      )
+      message(STATUS "Yocto SDK detected. Forwarding C++ headers to clang-tidy: ${YOCTO_CXX_INC}")
+    endif()
+  endif()
+  # --------------------------
+
   set(CMAKE_CXX_CLANG_TIDY ${CLANG_TIDY_EXE} ${CLANG_TIDY_ARGS})
 elseif(NOT ENABLE_CLANG_TIDY)
   message(STATUS "clang-tidy is explicitly disabled via ENABLE_CLANG_TIDY.")
