@@ -14,7 +14,7 @@ from utils import (
 
 def main():
     change_to_project_root()
-    preset = get_arg(sys.argv, position=1, default="linux-debug")
+    preset = get_arg(sys.argv, position=1, default="yocto-debug")
     build_dir = Path("build") / preset
 
     if not build_dir.is_dir():
