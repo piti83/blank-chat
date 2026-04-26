@@ -1,83 +1,82 @@
 {
-  "version": 6,
-  "configurePresets": [
-    {
-      "name": "base",
-      "hidden": true,
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/${presetName}"
-    },
-    {
-      "name": "yocto-base",
-      "hidden": true,
-      "inherits": "base",
-      "toolchainFile": "$env{OECORE_NATIVE_SYSROOT}/usr/share/cmake/OEToolchainConfig.cmake",
-      "cacheVariables": {
-        "BUILD_CLIENT": "ON",
-        "BUILD_SERVER": "ON",
-        "BUILD_TESTING": "ON",
-        "USE_FETCH_CONTENT": "OFF",
-        "ENABLE_CLANG_TIDY": "ON"
-      }
-    },
-    {
-      "name": "yocto-debug",
-      "inherits": "yocto-base",
-      "displayName": "Yocto SDK Debug (for Valgrind/GDB)",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "BC_ENABLE_LOGS": "ON"
-      }
-    },
-    {
-      "name": "yocto-asan",
-      "inherits": "yocto-base",
-      "displayName": "Yocto SDK + ASan",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "USE_ASAN": "ON",
-        "BC_ENABLE_LOGS": "ON"
-      }
-    },
-    {
-      "name": "yocto-ubsan",
-      "inherits": "yocto-base",
-      "displayName": "Yocto SDK + UBSan",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "USE_UBSAN": "ON",
-        "BC_ENABLE_LOGS": "ON"
-      }
-    },
-    {
-      "name": "yocto-tsan",
-      "inherits": "yocto-base",
-      "displayName": "Yocto SDK + TSan",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "USE_TSAN": "ON",
-        "BC_ENABLE_LOGS": "ON"
-      }
-    },
-    {
-      "name": "yocto-coverage",
-      "inherits": "yocto-base",
-      "displayName": "Yocto SDK Code Coverage",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "USE_COVERAGE": "ON",
-        "BC_ENABLE_LOGS": "ON"
-      }
-    },
-    {
-      "name": "yocto-release",
-      "inherits": "yocto-base",
-      "displayName": "Yocto SDK Release",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "BC_ENABLE_LOGS": "OFF",
-        "BUILD_TESTING": "OFF"
-      }
-    }
-  ]
+    "version": 6,
+    "configurePresets": [
+        {
+            "name": "base",
+            "hidden": true,
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/${presetName}"
+        },
+        {
+            "name": "yocto-base",
+            "hidden": true,
+            "inherits": "base",
+            "toolchainFile": "$env{OECORE_NATIVE_SYSROOT}/usr/share/cmake/OEToolchainConfig.cmake",
+            "cacheVariables": {
+                "BUILD_CLIENT": "ON",
+                "BUILD_SERVER": "ON",
+                "BUILD_TESTING": "ON",
+                "ENABLE_CLANG_TIDY": "ON"
+            }
+        },
+        {
+            "name": "yocto-debug",
+            "inherits": "yocto-base",
+            "displayName": "Yocto SDK Debug (for Valgrind/GDB)",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "BC_ENABLE_LOGS": "ON"
+            }
+        },
+        {
+            "name": "yocto-asan",
+            "inherits": "yocto-base",
+            "displayName": "Yocto SDK + ASan",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "USE_ASAN": "ON",
+                "BC_ENABLE_LOGS": "ON"
+            }
+        },
+        {
+            "name": "yocto-ubsan",
+            "inherits": "yocto-base",
+            "displayName": "Yocto SDK + UBSan",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "USE_UBSAN": "ON",
+                "BC_ENABLE_LOGS": "ON"
+            }
+        },
+        {
+            "name": "yocto-tsan",
+            "inherits": "yocto-base",
+            "displayName": "Yocto SDK + TSan",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "USE_TSAN": "ON",
+                "BC_ENABLE_LOGS": "ON"
+            }
+        },
+        {
+            "name": "yocto-coverage",
+            "inherits": "yocto-base",
+            "displayName": "Yocto SDK Code Coverage",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "USE_COVERAGE": "ON",
+                "BC_ENABLE_LOGS": "ON"
+            }
+        },
+        {
+            "name": "yocto-release",
+            "inherits": "yocto-base",
+            "displayName": "Yocto SDK Release",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "BC_ENABLE_LOGS": "OFF",
+                "BUILD_TESTING": "OFF"
+            }
+        }
+    ]
 }

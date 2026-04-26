@@ -26,9 +26,6 @@ cache/
 *.out
 *.app
 
-vcpkg_installed/
-.vcpkg/
-
 coverage_report/
 *.gcda
 *.gcno

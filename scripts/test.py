@@ -18,7 +18,7 @@ def main():
     change_to_project_root()
     preset = get_arg(sys.argv, position=1, default="yocto-debug")
 
-    if preset.startswith("yocto-") and "OECORE_NATIVE_SYSROOT" not in os.environ:
+    if "OECORE_NATIVE_SYSROOT" not in os.environ:
         if not load_yocto_env():
             sys.exit(1)
 

@@ -32,7 +32,7 @@ def main():
     )
     args = parser.parse_args()
 
-    if args.preset.startswith("yocto-") and "OECORE_NATIVE_SYSROOT" not in os.environ:
+    if "OECORE_NATIVE_SYSROOT" not in os.environ:
         if not load_yocto_env():
             sys.exit(1)
 
