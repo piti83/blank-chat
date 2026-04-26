@@ -16,7 +16,7 @@ from utils import (
 def main():
     change_to_project_root()
     preset = "yocto-coverage"
-    if preset.startswith("yocto-") and "OECORE_NATIVE_SYSROOT" not in os.environ:
+    if "OECORE_NATIVE_SYSROOT" not in os.environ:
         if not load_yocto_env():
             sys.exit(1)
     build_dir = Path("build") / preset
