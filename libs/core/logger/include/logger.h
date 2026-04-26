@@ -42,6 +42,7 @@ public:
 
 #else
 
+// NOLINTBEGIN(cppcoreguidelines-avoid-do-while)
 #define BC_TRACE(fmt, ...)                                                                         \
     do {                                                                                           \
     } while (0)
@@ -62,6 +63,7 @@ public:
     } while (0)
 
 #endif
+// NOLINTEND(cppcoreguidelines-avoid-do-while)
 // NOLINTEND(cppcoreguidelines-macro-usage)
 
 #endif // BC_LIBS_CORE_LOGGER_INCLUDE_LOGGER_H_
