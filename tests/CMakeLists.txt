@@ -1,13 +1,14 @@
 include(GoogleTest)
 
 add_executable(blank_chat_ut
-        gtest_main.cpp
-        libs/core/logger/logger_test.cpp
-    )
+    gtest_main.cpp
+    libs/core/logger/logger_test.cpp
+)
 target_link_libraries(blank_chat_ut PRIVATE
-        GTest::gtest
-        blankchat::core
-    )
+    GTest::gtest
+    blankchat::core
+    blankchat::protocol
+)
 gtest_discover_tests(blank_chat_ut)
 
 set_project_warnings(blank_chat_ut)
