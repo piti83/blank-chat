@@ -3,6 +3,7 @@ include(GoogleTest)
 add_executable(blank_chat_ut
     gtest_main.cpp
     libs/core/logger/logger_test.cpp
+    libs/protocol/frame/frame_test.cpp
 )
 target_link_libraries(blank_chat_ut PRIVATE
     GTest::gtest
