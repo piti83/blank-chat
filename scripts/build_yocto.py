@@ -78,20 +78,25 @@ def main():
         print_info(f"Starting BitBake engine to build the {args.target} image(s)...")
 
     bash_command = f"""
-        cd {poky_dir}
-        source oe-init-build-env {build_dir}
+            cd {poky_dir}
+            source oe-init-build-env {build_dir}
 
-        bitbake-layers add-layer {meta_oe_dir}/meta-oe 2>/dev/null || true
-        bitbake-layers add-layer {meta_blankchat_dir} 2>/dev/null || true
+            bitbake-layers add-layer {meta_oe_dir}/meta-oe 2>/dev/null || true
+            bitbake-layers add-layer {meta_blankchat_dir} 2>/dev/null || true
 
-        if ! grep -q 'MACHINE = "genericx86-64"' conf/local.conf; then
-            echo 'MACHINE = "genericx86-64"' >> conf/local.conf
-        fi
+            if ! grep -q 'MACHINE = "genericx86-64"' conf/local.conf; then
+                echo 'MACHINE = "genericx86-64"' >> conf/local.conf
+            fi
 
-        sed -i '/UNINATIVE_MAXGLIBCVERSION/d' conf/local.conf
+            if ! grep -q 'INHERIT += "externalsrc"' conf/local.conf; then
+                echo 'INHERIT += "externalsrc"' >> conf/local.conf
+                echo 'EXTERNALSRC:pn-blank-chat = "{project_root}"' >> conf/local.conf
+            fi
 
-        {bitbake_target}
-        """
+            sed -i '/UNINATIVE_MAXGLIBCVERSION/d' conf/local.conf
+
+            {bitbake_target}
+            """
 
     run_command(["bash", "-c", bash_command], fail_msg="Yocto operation failed.")
     print_success(success_msg)

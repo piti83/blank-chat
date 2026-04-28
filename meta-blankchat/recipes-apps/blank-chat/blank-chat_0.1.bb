@@ -7,7 +7,7 @@ SRCREV = "${AUTOREV}"
 
 S = "${WORKDIR}/git"
 
-DEPENDS = "libsodium spdlog googletest"
+DEPENDS = "libsodium spdlog googletest boost"
 
 inherit cmake pkgconfig
 
