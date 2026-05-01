@@ -9,11 +9,10 @@ Checks: >
   portability-*,
   readability-*,
   security-*,
-  # Wyłączenie specyficznych reguł, które bywają irytujące:
   -cppcoreguidelines-pro-type-vararg,
-  -readability-braces-around-statements # format dba o to lepiej
+  -readability-braces-around-statements
 
-WarningsAsErrors: "*" 
+WarningsAsErrors: "*"
 
 CheckOptions:
   - key: readability-identifier-naming.VariableCase
@@ -25,4 +24,3 @@ CheckOptions:
   - key: readability-identifier-naming.MethodCase
     value: CamelCase
 ---
-

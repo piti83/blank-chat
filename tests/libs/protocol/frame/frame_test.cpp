@@ -10,7 +10,7 @@ protected:
 
     void SetUp() override
     {
-        defaultId.fill(0xAA);
+        defaultId.Fill(0xAA);
     }
 };
 
@@ -53,7 +53,8 @@ TEST_F(FrameTest, MoveConstructorTransfersOwnershipWithoutLeaks)
 
 TEST_F(FrameTest, SerializePushFrameProducesCorrectBuffer)
 {
-    MailboxID id = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+    MailboxID id(std::array<std::uint8_t, mailboxIdSize>{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
+                                                         14, 15, 16});
     Payload data = {0xAA, 0xBB, 0xCC};
 
     auto frame = Frame::CreatePush(id, std::move(data));

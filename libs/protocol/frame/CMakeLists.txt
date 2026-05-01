@@ -1,5 +1,6 @@
 add_library(protocol_frame STATIC
     src/frame.cpp
+    src/mailbox_id.cpp
 )
 
 set_project_warnings(protocol_frame)
