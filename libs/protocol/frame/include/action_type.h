@@ -5,7 +5,7 @@
 
 namespace bc::protocol::frame {
 
-constexpr uint8_t actionTypeSize = 1;
+constexpr std::uint8_t actionTypeSize = 1;
 enum class ActionType : std::uint8_t { PUSH = 0x01, POLL = 0x02 };
 
 } // namespace bc::protocol::frame

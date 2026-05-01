@@ -3,15 +3,12 @@
 
 #include "action_type.h"
 
-#include <array>
 #include <cstdint>
+#include <mailbox_id.h>
 #include <vector>
 
 namespace bc::protocol::frame {
 
-constexpr uint8_t mailboxIdSize = 16;
-
-using MailboxID = std::array<std::uint8_t, mailboxIdSize>;
 using Payload = std::vector<std::uint8_t>;
 using PayloadLength = std::uint32_t;
 using RawFrame = std::vector<std::uint8_t>;
