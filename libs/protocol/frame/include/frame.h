@@ -36,6 +36,8 @@ public:
     [[nodiscard]] auto GetPayloadLength() const noexcept -> PayloadLength;
     [[nodiscard]] auto GetPayload() const noexcept -> const Payload&;
 
+    [[nodiscard]] auto ExtractPayload() && noexcept -> Payload;
+
 private:
     Frame(ActionType action, const MailboxID& mailboxId, Payload&& payload);
 

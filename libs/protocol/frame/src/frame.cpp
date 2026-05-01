@@ -65,4 +65,9 @@ auto Frame::GetPayload() const noexcept -> const Payload&
     return payload;
 }
 
+auto Frame::ExtractPayload() && noexcept -> Payload
+{
+    return std::move(payload);
+}
+
 } // namespace bc::protocol::frame

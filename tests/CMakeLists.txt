@@ -5,11 +5,13 @@ add_executable(blank_chat_ut
     libs/core/logger/logger_test.cpp
     libs/protocol/frame/frame_test.cpp
     libs/protocol/frame/mailbox_id_test.cpp
+    libs/domain/server/message_broker_test.cpp
 )
 target_link_libraries(blank_chat_ut PRIVATE
     GTest::gtest
     blankchat::core
     blankchat::protocol
+    blankchat::domain-server
 )
 gtest_discover_tests(blank_chat_ut)
 

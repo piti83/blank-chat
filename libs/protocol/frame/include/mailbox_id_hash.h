@@ -5,12 +5,14 @@
 
 #include <functional>
 
+// TODO: Consider different hashing or corectness of this one
+
 namespace std {
 
 template <> struct hash<bc::protocol::frame::MailboxID>
 {
-    [[nodiscard]] auto
-    operator()(const bc::protocol::frame::MailboxID& mailboxId) const noexcept -> std::size_t
+    [[nodiscard]] auto operator()(const bc::protocol::frame::MailboxID& mailboxId) const noexcept
+        -> std::size_t
     {
         constexpr size_t hashingConstant = 0x9e3779b9;
         std::size_t seed = mailboxId.size();
