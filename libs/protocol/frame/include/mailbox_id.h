@@ -21,10 +21,10 @@ public:
     // NOLINTBEGIN(readability-identifier-naming)
     [[nodiscard]] auto data() const noexcept -> const std::uint8_t*;
     [[nodiscard]] auto size() const noexcept -> std::size_t;
-    [[nodiscard]] auto begin() const noexcept
-        -> std::array<std::uint8_t, mailboxIdSize>::const_iterator;
-    [[nodiscard]] auto end() const noexcept
-        -> std::array<std::uint8_t, mailboxIdSize>::const_iterator;
+    [[nodiscard]] auto
+    begin() const noexcept -> std::array<std::uint8_t, mailboxIdSize>::const_iterator;
+    [[nodiscard]] auto
+    end() const noexcept -> std::array<std::uint8_t, mailboxIdSize>::const_iterator;
     // NOLINTEND(readability-identifier-naming)
 
     auto Fill(std::uint8_t value) -> void;
