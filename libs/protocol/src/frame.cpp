@@ -1,7 +1,7 @@
-#include <frame.h>
+#include <protocol/frame.h>
 #include <utility>
 
-namespace bc::protocol::frame {
+namespace bc::protocol {
 
 Frame::Frame(ActionType action, const MailboxID& mailboxId, Payload&& payload)
     : action(action), mailboxId(mailboxId),
@@ -70,4 +70,4 @@ auto Frame::ExtractPayload() && noexcept -> Payload
     return std::move(payload);
 }
 
-} // namespace bc::protocol::frame
+} // namespace bc::protocol

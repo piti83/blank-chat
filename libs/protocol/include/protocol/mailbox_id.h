@@ -1,11 +1,11 @@
-#ifndef BC_LIBS_PROTOCOL_FRAME_INCLUDE_MAILBOXID_H_
-#define BC_LIBS_PROTOCOL_FRAME_INCLUDE_MAILBOXID_H_
+#ifndef BC_LIBS_PROTOCOL_INCLUDE_MAILBOXID_H_
+#define BC_LIBS_PROTOCOL_INCLUDE_MAILBOXID_H_
 
 #include <array>
 #include <cstdint>
 #include <span>
 
-namespace bc::protocol::frame {
+namespace bc::protocol {
 
 constexpr std::uint8_t mailboxIdSize = 16;
 
@@ -34,6 +34,6 @@ private:
     std::array<std::uint8_t, mailboxIdSize> bytes{};
 };
 
-} // namespace bc::protocol::frame
+} // namespace bc::protocol
 
-#endif // BC_LIBS_PROTOCOL_FRAME_INCLUDE_MAILBOXID_H_
+#endif // BC_LIBS_PROTOCOL_INCLUDE_MAILBOXID_H_

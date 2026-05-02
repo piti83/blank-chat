@@ -1,7 +1,7 @@
-#include <frame.h>
+#include <protocol/frame.h>
 #include <gtest/gtest.h>
 
-namespace bc::protocol::frame {
+namespace bc::protocol {
 
 class FrameTest : public ::testing::Test
 {
@@ -124,4 +124,4 @@ TEST_F(FrameTest, ExtractPayloadMovesDataWithoutCopyAndLeavesFrameEmpty)
     EXPECT_TRUE(frame.GetPayload().empty());
 }
 
-} // namespace bc::protocol::frame
+} // namespace bc::protocol

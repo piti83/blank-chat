@@ -1,8 +1,8 @@
 #ifndef BC_LIBS_DOMAIN_SERVER_INCLUDE_MESSAGEBROKER_H_
 #define BC_LIBS_DOMAIN_SERVER_INCLUDE_MESSAGEBROKER_H_
 
-#include <frame.h>
-#include <mailbox_id_hash.h>
+#include <protocol/frame.h>
+#include <protocol/mailbox_id_hash.h>
 #include <optional>
 #include <queue>
 #include <unordered_map>
@@ -21,13 +21,12 @@ public:
     MessageBroker(MessageBroker&&) noexcept = default;
     auto operator=(MessageBroker&&) noexcept -> MessageBroker& = default;
 
-    auto ProcessPush(bc::protocol::frame::Frame&& frame) -> void;
-    [[nodiscard]] auto ProcessPoll(const bc::protocol::frame::MailboxID& mid)
-        -> std::optional<bc::protocol::frame::Frame>;
+    auto ProcessPush(bc::protocol::Frame&& frame) -> void;
+    [[nodiscard]] auto ProcessPoll(const bc::protocol::MailboxID& mid)
+        -> std::optional<bc::protocol::Frame>;
 
 private:
-    std::unordered_map<bc::protocol::frame::MailboxID, std::queue<bc::protocol::frame::Payload>>
-        queues;
+    std::unordered_map<bc::protocol::MailboxID, std::queue<bc::protocol::Payload>> queues;
 };
 
 } // namespace bc::domain::server

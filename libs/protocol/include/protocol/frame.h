@@ -1,13 +1,13 @@
-#ifndef BC_LIBS_PROTOCOL_FRAME_INCLUDE_FRAME_H_
-#define BC_LIBS_PROTOCOL_FRAME_INCLUDE_FRAME_H_
+#ifndef BC_LIBS_PROTOCOL_INCLUDE_FRAME_H_
+#define BC_LIBS_PROTOCOL_INCLUDE_FRAME_H_
 
-#include "action_type.h"
+#include <protocol/action_type.h>
 
 #include <cstdint>
-#include <mailbox_id.h>
+#include <protocol/mailbox_id.h>
 #include <vector>
 
-namespace bc::protocol::frame {
+namespace bc::protocol {
 
 using Payload = std::vector<std::uint8_t>;
 using PayloadLength = std::uint32_t;
@@ -47,6 +47,6 @@ private:
     Payload payload;
 };
 
-} // namespace bc::protocol::frame
+} // namespace bc::protocol
 
-#endif // BC_LIBS_PROTOCOL_FRAME_INCLUDE_FRAME_H_
+#endif // BC_LIBS_PROTOCOL_INCLUDE_FRAME_H_

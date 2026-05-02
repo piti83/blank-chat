@@ -1,9 +1,9 @@
 #include <gtest/gtest.h>
-#include <mailbox_id.h>
-#include <mailbox_id_hash.h>
+#include <protocol/mailbox_id.h>
+#include <protocol/mailbox_id_hash.h>
 #include <vector>
 
-namespace bc::protocol::frame {
+namespace bc::protocol {
 
 class MailboxIDTest : public ::testing::Test
 {
@@ -106,4 +106,4 @@ TEST_F(MailboxIDTest, HashSpecializationGeneratesDeterministicHashes)
     EXPECT_NE(hasher(id1), hasher(id2));
 }
 
-} // namespace bc::protocol::frame
+} // namespace bc::protocol

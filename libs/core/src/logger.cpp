@@ -1,12 +1,12 @@
-#include "logger.h"
+#include <core/logger.h>
 
-#include "log_level.h"
+#include <core/log_level.h>
 
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 
-namespace bc::core::logger {
+namespace bc::core {
 
 auto Logger::Init() -> void
 {
@@ -39,4 +39,4 @@ auto Logger::Log(Level level, std::string_view fmt, std::format_args args) -> vo
     logger->log(spdlogLevel, formatted);
 }
 
-} // namespace bc::core::logger
+} // namespace bc::core
