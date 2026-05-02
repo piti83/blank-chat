@@ -24,9 +24,7 @@ jobs:
               run: sudo apt-get update -y && sudo apt-get install -y cmake ninja-build python3 clang-tidy cppcheck
 
             - name: Install exact clang-format version via pip
-              run: |
-                  python3 -m pip install --break-system-packages --upgrade pip
-                  python3 -m pip install --break-system-packages clang-format==22.1.3
+              run: pipx install clang-format
 
             - name: Install Yocto SDK
               run: python3 scripts/download_sdk.py
