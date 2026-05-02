@@ -1,9 +1,8 @@
 #ifndef BC_LIBS_PROTOCOL_INCLUDE_MAILBOXIDHASH_H_
 #define BC_LIBS_PROTOCOL_INCLUDE_MAILBOXIDHASH_H_
 
-#include <protocol/mailbox_id.h>
-
 #include <functional>
+#include <protocol/mailbox_id.h>
 
 // TODO: Consider different hashing or corectness of this one
 

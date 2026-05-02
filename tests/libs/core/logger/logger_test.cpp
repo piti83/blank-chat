@@ -1,7 +1,7 @@
+#include <core/logger.h>
 #include <filesystem>
 #include <fstream>
 #include <gtest/gtest.h>
-#include <core/logger.h>
 #include <spdlog/spdlog.h>
 #include <string>
 

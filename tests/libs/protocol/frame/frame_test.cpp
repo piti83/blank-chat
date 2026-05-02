@@ -1,5 +1,5 @@
-#include <protocol/frame.h>
 #include <gtest/gtest.h>
+#include <protocol/frame.h>
 
 namespace bc::protocol {
 

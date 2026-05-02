@@ -1,5 +1,4 @@
 #include <protocol/frame.h>
-
 #include <server/message_broker.h>
 
 namespace bc::domain::server {

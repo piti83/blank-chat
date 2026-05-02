@@ -1,9 +1,8 @@
 #ifndef BC_LIBS_PROTOCOL_INCLUDE_FRAME_H_
 #define BC_LIBS_PROTOCOL_INCLUDE_FRAME_H_
 
-#include <protocol/action_type.h>
-
 #include <cstdint>
+#include <protocol/action_type.h>
 #include <protocol/mailbox_id.h>
 #include <vector>
 
