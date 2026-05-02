@@ -1,9 +1,9 @@
-#include <logger.h>
+#include <core/logger.h>
 #include <sodium.h>
 
 auto main() -> int
 {
-    bc::core::logger::Logger::Init();
+    bc::core::Logger::Init();
     BC_INFO("Running client...");
     return 0;
 }

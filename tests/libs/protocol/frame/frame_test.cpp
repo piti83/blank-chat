@@ -1,7 +1,7 @@
-#include <frame.h>
 #include <gtest/gtest.h>
+#include <protocol/frame.h>
 
-namespace bc::protocol::frame {
+namespace bc::protocol {
 
 class FrameTest : public ::testing::Test
 {
@@ -108,4 +108,20 @@ TEST_F(FrameTest, SerializeVerifiesLittleEndianEncoding)
     EXPECT_EQ(buffer[20], 0x00);
 }
 
-} // namespace bc::protocol::frame
+TEST_F(FrameTest, ExtractPayloadMovesDataWithoutCopyAndLeavesFrameEmpty)
+{
+    Payload originalData = {0xDE, 0xAD, 0xBE, 0xEF, 0x42};
+    auto frame = Frame::CreatePush(defaultId, std::move(originalData));
+
+    ASSERT_EQ(frame.GetPayloadLength(), 5);
+    ASSERT_FALSE(frame.GetPayload().empty());
+
+    Payload extractedData = std::move(frame).ExtractPayload();
+
+    EXPECT_EQ(extractedData.size(), 5);
+    EXPECT_EQ(extractedData, (Payload{0xDE, 0xAD, 0xBE, 0xEF, 0x42}));
+
+    EXPECT_TRUE(frame.GetPayload().empty());
+}
+
+} // namespace bc::protocol

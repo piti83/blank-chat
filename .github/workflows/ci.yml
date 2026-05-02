@@ -19,20 +19,27 @@ jobs:
         runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
+
             - name: Install dependencies
-              run: sudo apt-get update -y && sudo apt-get install -y cmake ninja-build python3 clang-format clang-tidy cppcheck
+              run: sudo apt-get update -y && sudo apt-get install -y cmake ninja-build python3 clang-tidy cppcheck
+
+            - name: Install exact clang-format version via pip
+              run: pipx install clang-format
+
             - name: Install Yocto SDK
               run: python3 scripts/download_sdk.py
+
             - name: Format Check
               run: |
                   source ../yocto-dev/sdk/environment-setup-*
                   python3 scripts/format.py yocto-debug
                   git diff --exit-code || (echo "Code formatting issues found." && exit 1)
+
             - name: Cppcheck Analysis
               run: |
                   source ../yocto-dev/sdk/environment-setup-*
                   python3 scripts/build.py yocto-debug -c
-                  cppcheck --enable=all --error-exitcode=1 --suppress=missingIncludeSystem -I libs/ apps/
+                  cppcheck --enable=all --error-exitcode=1 --suppress=missingIncludeSystem -I libs/ apps/ libs/
 
     test_sanitizers:
         runs-on: ubuntu-24.04

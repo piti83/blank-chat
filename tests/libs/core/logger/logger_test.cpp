@@ -1,7 +1,7 @@
+#include <core/logger.h>
 #include <filesystem>
 #include <fstream>
 #include <gtest/gtest.h>
-#include <logger.h>
 #include <spdlog/spdlog.h>
 #include <string>
 
@@ -29,7 +29,7 @@ protected:
 
 TEST_F(LoggerTest, InitConfiguresDefaultLoggerProperly)
 {
-    bc::core::logger::Logger::Init();
+    bc::core::Logger::Init();
     auto logger = spdlog::default_logger();
 
     ASSERT_NE(logger, nullptr);
@@ -40,7 +40,7 @@ TEST_F(LoggerTest, InitConfiguresDefaultLoggerProperly)
 
 TEST_F(LoggerTest, MacrosLogToFileSuccessfully)
 {
-    bc::core::logger::Logger::Init();
+    bc::core::Logger::Init();
 
     BC_TRACE("Test {} message", "trace");
     BC_DEBUG("Test {} message", "debug");
@@ -62,10 +62,9 @@ TEST_F(LoggerTest, MacrosLogToFileSuccessfully)
 
 TEST_F(LoggerTest, HandlesInvalidLogLevelGracefully)
 {
-    bc::core::logger::Logger::Init();
-    bc::core::logger::Logger::Log(static_cast<bc::core::logger::Level>(999),
-                                  "This should not crash and should be ignored",
-                                  std::make_format_args());
+    bc::core::Logger::Init();
+    bc::core::Logger::Log(static_cast<bc::core::Level>(999),
+                          "This should not crash and should be ignored", std::make_format_args());
     SUCCEED();
 }
 

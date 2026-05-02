@@ -1,9 +1,9 @@
 function(setup_format_target)
     find_program(CLANG_FORMAT_EXE NAMES "clang-format")
     if(CLANG_FORMAT_EXE)
-        file(GLOB_RECURSE ALL_SOURCE_FILES
+        file(GLOB_RECURSE ALL_SOURCE_FILES CONFIGURE_DEPENDS
             "libs/*.cpp" "libs/*.h" "libs/*.hpp"
-            "apps/*.cpp" "tests/*.cpp"
+            "apps/*.cpp" "tests/*.cpp" "tests/*.h" "tests/*.hpp"
         )
         add_custom_target(format
             COMMAND ${CLANG_FORMAT_EXE} -i -style=file ${ALL_SOURCE_FILES}

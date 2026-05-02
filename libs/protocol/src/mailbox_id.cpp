@@ -1,8 +1,8 @@
 #include <algorithm>
-#include <mailbox_id.h>
+#include <protocol/mailbox_id.h>
 #include <span>
 
-namespace bc::protocol::frame {
+namespace bc::protocol {
 
 MailboxID::MailboxID(const std::array<uint8_t, mailboxIdSize>& bytes) : bytes(bytes)
 {
@@ -43,4 +43,4 @@ auto MailboxID::AsSpan() const noexcept -> std::span<const std::uint8_t, mailbox
     return bytes;
 }
 
-} // namespace bc::protocol::frame
+} // namespace bc::protocol

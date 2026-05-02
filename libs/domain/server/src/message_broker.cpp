@@ -1,0 +1,31 @@
+#include <protocol/frame.h>
+#include <server/message_broker.h>
+
+namespace bc::domain::server {
+
+auto MessageBroker::ProcessPush(bc::protocol::Frame&& frame) -> void
+{
+    auto mid = frame.GetMailboxID();
+    queues[mid].push(std::move(frame).ExtractPayload());
+}
+
+auto MessageBroker::ProcessPoll(const bc::protocol::MailboxID& mid)
+    -> std::optional<bc::protocol::Frame>
+{
+    auto iter = queues.find(mid);
+
+    if (iter == queues.end() || iter->second.empty()) {
+        return std::nullopt;
+    }
+
+    auto payload = std::move(iter->second.front());
+    iter->second.pop();
+
+    if (iter->second.empty()) {
+        queues.erase(iter);
+    }
+
+    return bc::protocol::Frame::CreatePush(mid, std::move(payload));
+}
+
+} // namespace bc::domain::server

@@ -1,16 +1,17 @@
-#ifndef BC_LIBS_PROTOCOL_FRAME_INCLUDE_MAILBOXIDHASH_H_
-#define BC_LIBS_PROTOCOL_FRAME_INCLUDE_MAILBOXIDHASH_H_
-
-#include "mailbox_id.h"
+#ifndef BC_LIBS_PROTOCOL_INCLUDE_MAILBOXIDHASH_H_
+#define BC_LIBS_PROTOCOL_INCLUDE_MAILBOXIDHASH_H_
 
 #include <functional>
+#include <protocol/mailbox_id.h>
+
+// TODO: Consider different hashing or corectness of this one
 
 namespace std {
 
-template <> struct hash<bc::protocol::frame::MailboxID>
+template <> struct hash<bc::protocol::MailboxID>
 {
-    [[nodiscard]] auto
-    operator()(const bc::protocol::frame::MailboxID& mailboxId) const noexcept -> std::size_t
+    [[nodiscard]] auto operator()(const bc::protocol::MailboxID& mailboxId) const noexcept
+        -> std::size_t
     {
         constexpr size_t hashingConstant = 0x9e3779b9;
         std::size_t seed = mailboxId.size();
@@ -27,4 +28,4 @@ template <> struct hash<bc::protocol::frame::MailboxID>
 
 } // namespace std
 
-#endif // BC_LIBS_PROTOCOL_FRAME_INCLUDE_MAILBOXIDHASH_H_
+#endif // BC_LIBS_PROTOCOL_INCLUDE_MAILBOXIDHASH_H_

@@ -1,10 +1,10 @@
-#ifndef BC_LIBS_CORE_LOGGER_INCLUDE_LOGLEVEL_H_
-#define BC_LIBS_CORE_LOGGER_INCLUDE_LOGLEVEL_H_
+#ifndef BC_LIBS_CORE_INCLUDE_LOGLEVEL_H_
+#define BC_LIBS_CORE_INCLUDE_LOGLEVEL_H_
 
 #include <cstdint>
 #include <spdlog/spdlog.h>
 
-namespace bc::core::logger {
+namespace bc::core {
 
 enum class Level : std::uint8_t { Trace, Debug, Info, Warn, Error, Critical };
 
@@ -27,6 +27,6 @@ static constexpr auto MapLevel(Level level) -> spdlog::level::level_enum
     return spdlog::level::off;
 }
 
-} // namespace bc::core::logger
+} // namespace bc::core
 
-#endif // BC_LIBS_CORE_LOGGER_INCLUDE_LOGLEVEL_H_
+#endif // BC_LIBS_CORE_INCLUDE_LOGLEVEL_H_
