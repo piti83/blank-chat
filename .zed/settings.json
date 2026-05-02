@@ -2,7 +2,7 @@
     "project_name": "[BLANK CHAT]",
     "languages": {
         "C++": {
-            "format_on_save": "off",
+            "format_on_save": "on",
             "formatter": {
                 "external": {
                     "command": "clang-format",
@@ -11,7 +11,7 @@
             },
         },
         "C": {
-            "format_on_save": "off",
+            "format_on_save": "on",
             "formatter": {
                 "external": {
                     "command": "clang-format",
