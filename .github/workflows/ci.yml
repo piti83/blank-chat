@@ -39,7 +39,7 @@ jobs:
               run: |
                   source ../yocto-dev/sdk/environment-setup-*
                   python3 scripts/build.py yocto-debug -c
-                  cppcheck --enable=all --error-exitcode=1 --suppress=missingIncludeSystem -I libs/ apps/
+                  cppcheck --enable=all --error-exitcode=1 --suppress=missingIncludeSystem -I libs/ apps/ libs/
 
     test_sanitizers:
         runs-on: ubuntu-24.04
