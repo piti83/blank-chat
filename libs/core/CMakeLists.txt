@@ -1,5 +1,6 @@
 add_library(lib_core STATIC
     src/logger.cpp
+    src/secure_buffer.cpp
 )
 
 set_project_warnings(lib_core)
