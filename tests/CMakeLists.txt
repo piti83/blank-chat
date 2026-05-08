@@ -2,9 +2,10 @@ include(GoogleTest)
 
 add_executable(blank_chat_ut
     gtest_main.cpp
-    libs/core/logger/logger_test.cpp
-    libs/protocol/frame/frame_test.cpp
-    libs/protocol/frame/mailbox_id_test.cpp
+    libs/core/logger_test.cpp
+    libs/core/secure_buffer_test.cpp
+    libs/protocol/frame_test.cpp
+    libs/protocol/mailbox_id_test.cpp
     libs/domain/server/message_broker_test.cpp
 )
 target_link_libraries(blank_chat_ut PRIVATE

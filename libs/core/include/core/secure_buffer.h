@@ -24,6 +24,7 @@ public:
     auto operator=(SecureBuffer&& other) noexcept -> SecureBuffer&;
 
     [[nodiscard]] auto Data() noexcept -> BufferType*;
+    [[nodiscard]] auto Data() const noexcept -> const BufferType*;
     [[nodiscard]] auto Size() const noexcept -> std::size_t;
     [[nodiscard]] auto IsEmpty() const noexcept -> bool;
     [[nodiscard]] auto AsSpan() const noexcept -> std::span<const BufferType>;
