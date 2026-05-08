@@ -1,0 +1,12 @@
+#ifndef BC_LIBS_PROTOCOL_INCLUDE_FRAMEPARSERSTATE_H_
+#define BC_LIBS_PROTOCOL_INCLUDE_FRAMEPARSERSTATE_H_
+
+#include <cstdint>
+
+namespace bc::protocol {
+
+enum class ParserState : std::uint8_t { READING_HEADER, READING_PAYLOAD };
+
+}
+
+#endif // BC_LIBS_PROTOCOL_INCLUDE_FRAMEPARSERSTATE_H_
