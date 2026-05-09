@@ -1,5 +1,6 @@
 add_library(lib_protocol STATIC
     src/frame.cpp
+    src/frame_parser.cpp
     src/mailbox_id.cpp
 )
 

@@ -9,9 +9,6 @@
 
 namespace bc::protocol {
 
-using Payload = std::vector<std::uint8_t>;
-using PayloadLength = std::uint32_t;
-
 class FrameParser
 {
 public:
@@ -26,12 +23,23 @@ public:
 
     auto FeedBytes(std::span<const std::uint8_t> data) -> std::size_t;
     [[nodiscard]] auto TryExtractFrame() -> std::optional<Frame>;
+    [[nodiscard]] auto HasError() const noexcept -> bool;
 
 private:
+    auto ParseHeader() -> void;
+
     ParserState currentState{ParserState::READING_HEADER};
-    std::vector<std::uint8_t> headerBuffer;
+    Payload headerBuffer;
     Payload payloadBuffer;
+
+    std::optional<ActionType> currentAction;
+    std::optional<MailboxID> currentMailbox;
     PayloadLength expectedPayloadLength{0};
+
+    static constexpr std::size_t headerSize =
+        actionTypeSize + mailboxIdSize + sizeof(PayloadLength);
+
+    static constexpr PayloadLength maxPayloadSize = 1024 * 1024;
 };
 
 } // namespace bc::protocol

@@ -5,7 +5,12 @@
 
 namespace bc::protocol {
 
-enum class ParserState : std::uint8_t { READING_HEADER, READING_PAYLOAD };
+enum class ParserState : std::uint8_t {
+    READING_HEADER,
+    READING_PAYLOAD,
+    FRAME_READY,
+    ERROR_MALFORMED
+};
 
 }
 
