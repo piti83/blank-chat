@@ -1,5 +1,3 @@
-#include "network/tcp_session.h"
-
 #include <cstddef>
 #include <utility>
 
@@ -7,6 +5,8 @@
 
 #include <core/logger.h>
 #include <protocol/action_type.h>
+
+#include "network/tcp_session.h"
 
 namespace bc::network {
 
@@ -31,18 +31,14 @@ auto TcpSession::DoRead() -> void
                 return;
             }
 
-            // ZERO-COPY: Tworzymy lekki widok (span) na odebrane bajty
             std::span<const std::uint8_t> dataSpan(readBuffer.data(), bytesTransferred);
 
-            // Karmimy maszynę stanów parsera
             parser.FeedBytes(dataSpan);
 
-            // OBRONA: Natychmiastowe zrzucenie gniazda w przypadku błędu formatu (np. atak)
             if (parser.HasError()) {
                 BC_WARN("Network parser error (potential malformed frame). Dropping connection.");
 
                 ErrorCode closeEc;
-                // NOLINTNEXTLINE(cert-err33-c, bugprone-unused-return-value)
                 socket.close(closeEc);
 
                 if (closeEc) {
@@ -51,10 +47,8 @@ auto TcpSession::DoRead() -> void
                 return;
             }
 
-            // Wyciągamy i obsługujemy pełne ramki
             ProcessExtractedFrame();
 
-            // Jeśli parser nie wymusił zamknięcia gniazda, wieszamy kolejny nasłuch
             if (socket.is_open()) {
                 DoRead();
             }
@@ -63,13 +57,11 @@ auto TcpSession::DoRead() -> void
 
 auto TcpSession::ProcessExtractedFrame() -> void
 {
-    // Pętla wyciąga wszystkie ramki, które mogły przyjść w jednym zrzucie TCP
     while (auto frameOpt = parser.TryExtractFrame()) {
         auto& frame = *frameOpt;
 
         if (frame.GetActionType() == bc::protocol::ActionType::PUSH) {
             BC_TRACE("Received PUSH frame, injecting into handler.");
-            // ZERO-COPY: Przenosimy ramkę bezpośrednio do logiki biznesowej
             handler.ProcessPush(std::move(frame));
         } else if (frame.GetActionType() == bc::protocol::ActionType::POLL) {
             BC_TRACE("Received POLL frame, checking handler for messages.");
@@ -77,7 +69,6 @@ auto TcpSession::ProcessExtractedFrame() -> void
 
             if (responseOpt.has_value()) {
                 BC_TRACE("Message found for POLL, sending response.");
-                // Z-move-owanie odpowiedzi, serializacja i asynchroniczny zapis
                 DoWrite(std::move(*responseOpt).Serialize());
             }
         }
@@ -86,8 +77,6 @@ auto TcpSession::ProcessExtractedFrame() -> void
 
 auto TcpSession::DoWrite(bc::protocol::RawFrame frameData) -> void
 {
-    // Alokujemy bufor wysyłkowy na stercie i zarządzamy nim przez shared_ptr,
-    // aby żył dokładnie tak długo, aż karta sieciowa skończy nadawanie.
     auto bufferPtr = std::make_shared<bc::protocol::RawFrame>(std::move(frameData));
 
     auto self(shared_from_this());
