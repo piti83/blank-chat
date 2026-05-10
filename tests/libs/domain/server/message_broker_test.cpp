@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+
 #include <server/message_broker.h>
 
 namespace bc::domain::server {

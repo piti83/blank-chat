@@ -3,9 +3,10 @@
 
 #include <cstdint>
 #include <optional>
+#include <span>
+
 #include <protocol/frame.h>
 #include <protocol/frame_parser_state.h>
-#include <span>
 
 namespace bc::protocol {
 

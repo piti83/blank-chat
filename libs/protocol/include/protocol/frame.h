@@ -2,9 +2,10 @@
 #define BC_LIBS_PROTOCOL_INCLUDE_FRAME_H_
 
 #include <cstdint>
+#include <vector>
+
 #include <protocol/action_type.h>
 #include <protocol/mailbox_id.h>
-#include <vector>
 
 namespace bc::protocol {
 
