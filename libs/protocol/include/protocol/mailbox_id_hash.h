@@ -2,6 +2,7 @@
 #define BC_LIBS_PROTOCOL_INCLUDE_MAILBOXIDHASH_H_
 
 #include <functional>
+#include <numeric>
 
 #include <protocol/mailbox_id.h>
 
@@ -15,15 +16,16 @@ template <> struct hash<bc::protocol::MailboxID>
         -> std::size_t
     {
         constexpr size_t hashingConstant = 0x9e3779b9;
-        std::size_t seed = mailboxId.size();
-        for (const auto& byte : mailboxId) {
-            // NOLINTBEGIN(readability-magic-numbers)
-            // NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers)
-            seed ^= byte + hashingConstant + (seed << 6) + (seed >> 2);
-            // NOLINTEND(cppcoreguidelines-avoid-magic-numbers)
-            // NOLINTEND(readability-magic-numbers)
-        }
-        return seed;
+
+        return std::accumulate(mailboxId.begin(), mailboxId.end(), mailboxId.size(),
+                               [](std::size_t seed, std::uint8_t byte) {
+                                   // NOLINTBEGIN(readability-magic-numbers)
+                                   // NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers)
+                                   return seed ^
+                                          (byte + hashingConstant + (seed << 6) + (seed >> 2));
+                                   // NOLINTEND(cppcoreguidelines-avoid-magic-numbers)
+                                   // NOLINTEND(readability-magic-numbers)
+                               });
     }
 };
 
