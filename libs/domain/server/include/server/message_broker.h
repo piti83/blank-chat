@@ -2,10 +2,11 @@
 #define BC_LIBS_DOMAIN_SERVER_INCLUDE_MESSAGEBROKER_H_
 
 #include <optional>
-#include <protocol/frame.h>
-#include <protocol/mailbox_id_hash.h>
 #include <queue>
 #include <unordered_map>
+
+#include <protocol/frame.h>
+#include <protocol/mailbox_id_hash.h>
 
 namespace bc::domain::server {
 

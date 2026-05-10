@@ -1,5 +1,6 @@
-#include <core/secure_buffer.h>
 #include <gtest/gtest.h>
+
+#include <core/secure_buffer.h>
 
 namespace bc::core {
 

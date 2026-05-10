@@ -2,6 +2,7 @@
 #define BC_LIBS_CORE_INCLUDE_LOGLEVEL_H_
 
 #include <cstdint>
+
 #include <spdlog/spdlog.h>
 
 namespace bc::core {

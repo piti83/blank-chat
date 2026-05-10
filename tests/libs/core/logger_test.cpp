@@ -1,9 +1,11 @@
-#include <core/logger.h>
 #include <filesystem>
 #include <fstream>
+#include <string>
+
 #include <gtest/gtest.h>
 #include <spdlog/spdlog.h>
-#include <string>
+
+#include <core/logger.h>
 
 class LoggerTest : public ::testing::Test
 {

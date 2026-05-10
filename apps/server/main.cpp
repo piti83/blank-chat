@@ -1,5 +1,6 @@
-#include <core/logger.h>
 #include <sodium.h>
+
+#include <core/logger.h>
 
 auto main() -> int
 {

@@ -1,7 +1,9 @@
+#include <vector>
+
 #include <gtest/gtest.h>
+
 #include <protocol/frame.h>
 #include <protocol/frame_parser.h>
-#include <vector>
 
 namespace bc::protocol {
 

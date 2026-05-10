@@ -1,5 +1,6 @@
+#include "protocol/mailbox_id.h"
+
 #include <algorithm>
-#include <protocol/mailbox_id.h>
 #include <span>
 
 namespace bc::protocol {

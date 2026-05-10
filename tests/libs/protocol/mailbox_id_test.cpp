@@ -1,7 +1,9 @@
+#include <vector>
+
 #include <gtest/gtest.h>
+
 #include <protocol/mailbox_id.h>
 #include <protocol/mailbox_id_hash.h>
-#include <vector>
 
 namespace bc::protocol {
 

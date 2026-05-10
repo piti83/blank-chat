@@ -1,9 +1,10 @@
 #ifndef BC_LIBS_CORE_INCLUDE_LOGGER_H_
 #define BC_LIBS_CORE_INCLUDE_LOGGER_H_
 
-#include <core/log_level.h>
 #include <format>
 #include <string_view>
+
+#include <core/log_level.h>
 
 namespace bc::core {
 
