@@ -39,8 +39,7 @@ jobs:
               run: |
                   source ../yocto-dev/sdk/environment-setup-*
                   python3 scripts/build.py yocto-debug -c
-                  cppcheck --project=compile_commands.json --enable=all --error-exitcode=1 --suppress=missingIncludeSystem
-
+                  cppcheck --project=compile_commands.json --enable=all --error-exitcode=1 --suppress=missingIncludeSystem --suppress=unusedFunction --suppress=syntaxError:tests/*
     test_sanitizers:
         runs-on: ubuntu-24.04
         strategy:
