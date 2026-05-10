@@ -2,7 +2,8 @@
 #define BC_LIBS_CORE_INCLUDE_LOGGER_H_
 
 #include <format>
-#include <string_view>
+#include <iostream>
+#include <utility>
 
 #include <core/log_level.h>
 
@@ -13,7 +14,24 @@ class Logger
 public:
     static auto Init() -> void;
 
-    static auto Log(Level level, std::string_view fmt, std::format_args args) -> void;
+    template <typename... Args>
+    static auto Log(Level level, std::format_string<Args...> fmt, Args&&... args) noexcept -> void
+    {
+        try {
+            auto spdlogLevel = MapLevel(level);
+            auto logger = spdlog::default_logger();
+
+            if (!logger || !logger->should_log(spdlogLevel)) {
+                return;
+            }
+
+            logger->log(spdlogLevel, std::format(fmt, std::forward<Args>(args)...));
+        } catch (const std::exception& e) {
+            std::cerr << "[LOGGER INTERNAL ERROR] " << e.what() << '\n';
+        } catch (...) {
+            std::cerr << "[LOGGER INTERNAL ERROR] Unknown exception during formatting\n";
+        }
+    }
 };
 
 } // namespace bc::core
@@ -21,44 +39,32 @@ public:
 // NOLINTBEGIN(cppcoreguidelines-macro-usage)
 #if defined(BC_ENABLE_LOGS_ACTIVE) && BC_ENABLE_LOGS_ACTIVE == 1
 
-#define BC_TRACE(fmt, ...)                                                                         \
-    ::bc::core::Logger::Log(::bc::core::Level::Trace, fmt,                                         \
-                            std::make_format_args(__VA_OPT__(__VA_ARGS__)))
-#define BC_DEBUG(fmt, ...)                                                                         \
-    ::bc::core::Logger::Log(::bc::core::Level::Debug, fmt,                                         \
-                            std::make_format_args(__VA_OPT__(__VA_ARGS__)))
-#define BC_INFO(fmt, ...)                                                                          \
-    ::bc::core::Logger::Log(::bc::core::Level::Info, fmt,                                          \
-                            std::make_format_args(__VA_OPT__(__VA_ARGS__)))
-#define BC_WARN(fmt, ...)                                                                          \
-    ::bc::core::Logger::Log(::bc::core::Level::Warn, fmt,                                          \
-                            std::make_format_args(__VA_OPT__(__VA_ARGS__)))
-#define BC_ERROR(fmt, ...)                                                                         \
-    ::bc::core::Logger::Log(::bc::core::Level::Error, fmt,                                         \
-                            std::make_format_args(__VA_OPT__(__VA_ARGS__)))
-#define BC_CRITICAL(fmt, ...)                                                                      \
-    ::bc::core::Logger::Log(::bc::core::Level::Critical, fmt,                                      \
-                            std::make_format_args(__VA_OPT__(__VA_ARGS__)))
+#define BC_TRACE(...) ::bc::core::Logger::Log(::bc::core::Level::Trace, __VA_ARGS__)
+#define BC_DEBUG(...) ::bc::core::Logger::Log(::bc::core::Level::Debug, __VA_ARGS__)
+#define BC_INFO(...) ::bc::core::Logger::Log(::bc::core::Level::Info, __VA_ARGS__)
+#define BC_WARN(...) ::bc::core::Logger::Log(::bc::core::Level::Warn, __VA_ARGS__)
+#define BC_ERROR(...) ::bc::core::Logger::Log(::bc::core::Level::Error, __VA_ARGS__)
+#define BC_CRITICAL(...) ::bc::core::Logger::Log(::bc::core::Level::Critical, __VA_ARGS__)
 
 #else
 
 // NOLINTBEGIN(cppcoreguidelines-avoid-do-while)
-#define BC_TRACE(fmt, ...)                                                                         \
+#define BC_TRACE(...)                                                                              \
     do {                                                                                           \
     } while (0)
-#define BC_DEBUG(fmt, ...)                                                                         \
+#define BC_DEBUG(...)                                                                              \
     do {                                                                                           \
     } while (0)
-#define BC_INFO(fmt, ...)                                                                          \
+#define BC_INFO(...)                                                                               \
     do {                                                                                           \
     } while (0)
-#define BC_WARN(fmt, ...)                                                                          \
+#define BC_WARN(...)                                                                               \
     do {                                                                                           \
     } while (0)
-#define BC_ERROR(fmt, ...)                                                                         \
+#define BC_ERROR(...)                                                                              \
     do {                                                                                           \
     } while (0)
-#define BC_CRITICAL(fmt, ...)                                                                      \
+#define BC_CRITICAL(...)                                                                           \
     do {                                                                                           \
     } while (0)
 

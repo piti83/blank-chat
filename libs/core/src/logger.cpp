@@ -1,10 +1,10 @@
-#include "core/logger.h"
-
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 
 #include <core/log_level.h>
+
+#include "core/logger.h"
 
 namespace bc::core {
 
@@ -24,19 +24,6 @@ auto Logger::Init() -> void
     spdlog::set_default_logger(logger);
     spdlog::set_level(spdlog::level::trace);
     spdlog::flush_on(spdlog::level::warn);
-}
-
-auto Logger::Log(Level level, std::string_view fmt, std::format_args args) -> void
-{
-    auto spdlogLevel = MapLevel(level);
-    auto logger = spdlog::default_logger();
-
-    if (!logger || !logger->should_log(spdlogLevel)) {
-        return;
-    }
-
-    std::string formatted = std::vformat(fmt, args);
-    logger->log(spdlogLevel, formatted);
 }
 
 } // namespace bc::core

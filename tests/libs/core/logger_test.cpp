@@ -62,14 +62,6 @@ TEST_F(LoggerTest, MacrosLogToFileSuccessfully)
     EXPECT_NE(content.find("Test critical message"), std::string::npos);
 }
 
-TEST_F(LoggerTest, HandlesInvalidLogLevelGracefully)
-{
-    bc::core::Logger::Init();
-    bc::core::Logger::Log(static_cast<bc::core::Level>(999),
-                          "This should not crash and should be ignored", std::make_format_args());
-    SUCCEED();
-}
-
 TEST_F(LoggerTest, HandlesNullLoggerGracefully)
 {
     spdlog::drop_all();

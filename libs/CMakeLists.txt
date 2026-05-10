@@ -1,5 +1,5 @@
 add_subdirectory(core)
 add_subdirectory(crypto)
-add_subdirectory(network)
 add_subdirectory(protocol)
 add_subdirectory(domain)
+add_subdirectory(network)

@@ -4,7 +4,13 @@
 
 auto main() -> int
 {
-    bc::core::Logger::Init();
-    BC_INFO("Running server...");
-    return 0;
+    try {
+        bc::core::Logger::Init();
+        BC_INFO("Running server...");
+        return 0;
+    } catch (const std::exception& e) {
+        return 1;
+    } catch (...) {
+        return 2;
+    }
 }
