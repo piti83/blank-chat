@@ -39,6 +39,7 @@ auto TcpSession::DoRead() -> void
                 BC_WARN("Network parser error (potential malformed frame). Dropping connection.");
 
                 ErrorCode closeEc;
+                // NOLINTNEXTLINE(cert-err33-c, bugprone-unused-return-value)
                 socket.close(closeEc);
 
                 if (closeEc) {
