@@ -18,7 +18,7 @@ template <> struct hash<bc::protocol::MailboxID>
         constexpr size_t hashingConstant = 0x9e3779b9;
 
         return std::accumulate(mailboxId.begin(), mailboxId.end(), mailboxId.size(),
-                               [](std::size_t seed, std::uint8_t byte) {
+                               [](std::size_t seed, std::uint8_t byte) -> std::size_t {
                                    // NOLINTBEGIN(readability-magic-numbers)
                                    // NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers)
                                    return seed ^
