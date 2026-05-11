@@ -1,10 +1,10 @@
+#include "network/tcp_client.h"
+
 #include <exception>
 #include <utility>
 #include <vector>
 
 #include <core/logger.h>
-
-#include "network/tcp_client.h"
 
 namespace bc::network {
 
