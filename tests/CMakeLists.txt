@@ -5,6 +5,7 @@ add_executable(blank_chat_ut
     libs/core/logger_test.cpp
     libs/core/secure_buffer_test.cpp
     libs/domain/server/message_broker_test.cpp
+    libs/network/tcp_server_test.cpp
     libs/network/tcp_session_test.cpp
     libs/protocol/frame_parser_test.cpp
     libs/protocol/frame_test.cpp
