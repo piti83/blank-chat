@@ -10,6 +10,7 @@
 namespace bc::network {
 
 using TcpAcceptor = boost::asio::ip::tcp::acceptor;
+using Socket = boost::asio::ip::tcp::socket;
 using IOContext = boost::asio::io_context;
 using Endpoint = boost::asio::ip::tcp::endpoint;
 
@@ -29,6 +30,8 @@ public:
 
 private:
     auto DoAccept() -> void;
+    auto HandleAccept(boost::system::error_code errorCode, Socket socket) -> void;
+    auto InitializeSession(Socket socket) -> void;
 
     TcpAcceptor acceptor;
     bc::protocol::IFrameHandler& handler;
