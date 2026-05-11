@@ -1,11 +1,11 @@
+#include "network/tcp_server.h"
+
 #include <exception>
 #include <memory>
 #include <utility>
 
 #include <core/logger.h>
 #include <network/tcp_session.h>
-
-#include "network/tcp_server.h"
 
 namespace bc::network {
 
