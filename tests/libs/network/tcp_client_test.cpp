@@ -1,6 +1,5 @@
 #include <chrono>
 #include <cstdint>
-#include <future>
 #include <memory>
 #include <thread>
 #include <vector>
@@ -42,6 +41,7 @@ protected:
     void TearDown() override
     {
         serverIo.stop();
+
         if (serverThread.joinable()) {
             serverThread.join();
         }
@@ -83,25 +83,34 @@ TEST_F(TcpClientTest, SendFrameSuccessfullyTransmitsDataZeroCopy)
     auto frame = protocol::Frame::CreatePush(defaultMailbox, {0x01, 0x02, 0x03});
     auto expectedSerialized = frame.Serialize();
 
-    std::promise<std::vector<std::uint8_t>> receivedPromise;
-    auto receivedFuture = receivedPromise.get_future();
+    struct SharedState
+    {
+        std::mutex mutex;
+        std::condition_variable cv;
+        std::vector<uint8_t> data;
+        bool ready = false;
+    };
+    auto state = std::make_shared<SharedState>();
 
-    acceptor->async_accept([&](boost::system::error_code ec, boost::asio::ip::tcp::socket sock) {
-        if (ec) {
-            receivedPromise.set_value({});
+    acceptor->async_accept([expectedSize = expectedSerialized.size(), state](
+                               boost::system::error_code ec, boost::asio::ip::tcp::socket sock) {
+        if (ec)
             return;
-        }
 
         auto sockPtr = std::make_shared<boost::asio::ip::tcp::socket>(std::move(sock));
-        auto buffer = std::make_shared<std::vector<std::uint8_t>>(expectedSerialized.size());
+        auto buffer = std::make_shared<std::vector<uint8_t>>(expectedSize);
 
         boost::asio::async_read(
             *sockPtr, boost::asio::buffer(*buffer),
-            [sockPtr, buffer, &receivedPromise](boost::system::error_code ec, std::size_t) {
-                if (!ec)
-                    receivedPromise.set_value(*buffer);
-                else
-                    receivedPromise.set_value({});
+            [sockPtr, buffer, state](boost::system::error_code ec, std::size_t) {
+                if (!ec) {
+                    std::lock_guard<std::mutex> lock(state->mutex);
+                    state->data = *buffer;
+                    state->ready = true;
+                    state->cv.notify_one();
+                }
+                boost::system::error_code ignored;
+                sockPtr->close(ignored);
             });
     });
 
@@ -111,8 +120,21 @@ TEST_F(TcpClientTest, SendFrameSuccessfullyTransmitsDataZeroCopy)
     bool sendResult = client.SendFrame(std::move(frame));
     EXPECT_TRUE(sendResult);
 
-    ASSERT_EQ(receivedFuture.wait_for(std::chrono::seconds(1)), std::future_status::ready);
-    EXPECT_EQ(receivedFuture.get(), expectedSerialized);
+    {
+        std::unique_lock<std::mutex> lock(state->mutex);
+        bool waitResult =
+            state->cv.wait_for(lock, std::chrono::seconds(2), [&] { return state->ready; });
+
+        ASSERT_TRUE(waitResult) << "Timeout waiting for server to receive data";
+        EXPECT_EQ(state->data, expectedSerialized);
+    }
+
+    client.Disconnect();
+
+    serverIo.stop();
+    if (serverThread.joinable()) {
+        serverThread.join();
+    }
 }
 
 TEST_F(TcpClientTest, SendFrameReturnsFalseWhenSocketIsClosed)
