@@ -1,6 +1,7 @@
 add_library(lib_network STATIC
-    src/tcp_session.cpp
+    src/tcp_client.cpp
     src/tcp_server.cpp
+    src/tcp_session.cpp
 )
 
 set_project_warnings(lib_network)
