@@ -195,6 +195,12 @@ TEST_F(TcpClientTest, SendFrameSuccessfullyTransmitsDataZeroCopy)
         ASSERT_TRUE(waitResult) << "Timeout waiting for server to receive data";
         EXPECT_EQ(state->data, expectedSerialized);
     }
+
+    client.Disconnect();
+    serverIo.stop();
+    if (serverThread.joinable()) {
+        serverThread.join();
+    }
 }
 
 TEST_F(TcpClientTest, SendFrameReturnsFalseWhenSocketIsClosed)
