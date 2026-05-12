@@ -1,3 +1,4 @@
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <memory>
@@ -46,31 +47,94 @@ protected:
             serverThread.join();
         }
     }
+
+    auto SimulateTorHandshakeSync(boost::asio::ip::tcp::socket& sock, bool simulateFailure = false)
+        -> bool
+    {
+        boost::system::error_code ec;
+
+        std::array<std::uint8_t, 3> greeting{};
+        boost::asio::read(sock, boost::asio::buffer(greeting), ec);
+        if (ec || greeting[0] != 0x05)
+            return false;
+
+        std::array<std::uint8_t, 2> greetingResp = {0x05, 0x00};
+        boost::asio::write(sock, boost::asio::buffer(greetingResp), ec);
+        if (ec)
+            return false;
+
+        std::array<std::uint8_t, 5> reqHeader{};
+        boost::asio::read(sock, boost::asio::buffer(reqHeader), ec);
+        if (ec || reqHeader[0] != 0x05 || reqHeader[1] != 0x01 || reqHeader[3] != 0x03)
+            return false;
+
+        std::uint8_t addrLen = reqHeader[4];
+        std::vector<std::uint8_t> addrAndPort(addrLen + 2);
+        boost::asio::read(sock, boost::asio::buffer(addrAndPort), ec);
+        if (ec)
+            return false;
+
+        if (simulateFailure) {
+            std::array<std::uint8_t, 10> failResp = {0x05, 0x04, 0x00, 0x01, 0, 0, 0, 0, 0, 0};
+            boost::asio::write(sock, boost::asio::buffer(failResp), ec);
+            return false;
+        }
+
+        std::array<std::uint8_t, 10> successResp = {0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0};
+        boost::asio::write(sock, boost::asio::buffer(successResp), ec);
+
+        return !ec;
+    }
 };
 
-TEST_F(TcpClientTest, ConnectsSuccessfullyToValidEndpoint)
+TEST_F(TcpClientTest, ConnectsSuccessfullyToValidEndpointThroughTor)
 {
-    TcpClient client(clientIo);
-    bool result = client.Connect("127.0.0.1", serverPort);
+    acceptor->async_accept([this](boost::system::error_code ec, boost::asio::ip::tcp::socket sock) {
+        if (ec)
+            return;
+        SimulateTorHandshakeSync(sock);
+    });
+
+    TcpClient client(clientIo, "127.0.0.1", serverPort);
+    bool result = client.Connect("test.onion", 80);
 
     EXPECT_TRUE(result);
 }
 
-TEST_F(TcpClientTest, ConnectFailsGracefullyOnInvalidEndpoint)
+TEST_F(TcpClientTest, ConnectReturnsFalseWhenTorHandshakeFails)
 {
-    TcpClient client(clientIo);
+    acceptor->async_accept([this](boost::system::error_code ec, boost::asio::ip::tcp::socket sock) {
+        if (ec)
+            return;
+        SimulateTorHandshakeSync(sock, true);
+    });
 
+    TcpClient client(clientIo, "127.0.0.1", serverPort);
+    bool result = client.Connect("test.onion", 80);
+
+    EXPECT_FALSE(result);
+}
+
+TEST_F(TcpClientTest, ConnectFailsGracefullyOnInvalidTorDaemonEndpoint)
+{
     acceptor->close();
 
-    bool result = client.Connect("127.0.0.1", serverPort);
+    TcpClient client(clientIo, "127.0.0.1", serverPort);
+    bool result = client.Connect("test.onion", 80);
 
     EXPECT_FALSE(result);
 }
 
 TEST_F(TcpClientTest, DisconnectClosesSocketSafelyMultipleTimes)
 {
-    TcpClient client(clientIo);
-    ASSERT_TRUE(client.Connect("127.0.0.1", serverPort));
+    acceptor->async_accept([this](boost::system::error_code ec, boost::asio::ip::tcp::socket sock) {
+        if (ec)
+            return;
+        SimulateTorHandshakeSync(sock);
+    });
+
+    TcpClient client(clientIo, "127.0.0.1", serverPort);
+    ASSERT_TRUE(client.Connect("test.onion", 80));
 
     EXPECT_NO_THROW({
         client.Disconnect();
@@ -92,9 +156,12 @@ TEST_F(TcpClientTest, SendFrameSuccessfullyTransmitsDataZeroCopy)
     };
     auto state = std::make_shared<SharedState>();
 
-    acceptor->async_accept([expectedSize = expectedSerialized.size(), state](
+    acceptor->async_accept([this, expectedSize = expectedSerialized.size(), state](
                                boost::system::error_code ec, boost::asio::ip::tcp::socket sock) {
         if (ec)
+            return;
+
+        if (!SimulateTorHandshakeSync(sock))
             return;
 
         auto sockPtr = std::make_shared<boost::asio::ip::tcp::socket>(std::move(sock));
@@ -114,8 +181,8 @@ TEST_F(TcpClientTest, SendFrameSuccessfullyTransmitsDataZeroCopy)
             });
     });
 
-    TcpClient client(clientIo);
-    ASSERT_TRUE(client.Connect("127.0.0.1", serverPort));
+    TcpClient client(clientIo, "127.0.0.1", serverPort);
+    ASSERT_TRUE(client.Connect("test.onion", 80));
 
     bool sendResult = client.SendFrame(std::move(frame));
     EXPECT_TRUE(sendResult);
@@ -130,7 +197,6 @@ TEST_F(TcpClientTest, SendFrameSuccessfullyTransmitsDataZeroCopy)
     }
 
     client.Disconnect();
-
     serverIo.stop();
     if (serverThread.joinable()) {
         serverThread.join();
@@ -139,7 +205,7 @@ TEST_F(TcpClientTest, SendFrameSuccessfullyTransmitsDataZeroCopy)
 
 TEST_F(TcpClientTest, SendFrameReturnsFalseWhenSocketIsClosed)
 {
-    TcpClient client(clientIo);
+    TcpClient client(clientIo, "127.0.0.1", serverPort);
 
     auto frame = protocol::Frame::CreatePoll(defaultMailbox);
     bool result = client.SendFrame(std::move(frame));
@@ -153,14 +219,17 @@ TEST_F(TcpClientTest, ReceiveFrameSuccessfullyParsesValidData)
     auto serialized = serverFrame.Serialize();
 
     acceptor->async_accept(
-        [serialized](boost::system::error_code ec, boost::asio::ip::tcp::socket sock) {
+        [this, serialized](boost::system::error_code ec, boost::asio::ip::tcp::socket sock) {
             if (ec)
                 return;
+            if (!SimulateTorHandshakeSync(sock))
+                return;
+
             boost::asio::write(sock, boost::asio::buffer(serialized));
         });
 
-    TcpClient client(clientIo);
-    ASSERT_TRUE(client.Connect("127.0.0.1", serverPort));
+    TcpClient client(clientIo, "127.0.0.1", serverPort);
+    ASSERT_TRUE(client.Connect("test.onion", 80));
 
     auto receivedOpt = client.ReceiveFrame();
 
@@ -175,17 +244,20 @@ TEST_F(TcpClientTest, ReceiveFrameHandlesTcpFragmentationSafely)
     auto serialized = serverFrame.Serialize();
 
     acceptor->async_accept(
-        [serialized](boost::system::error_code ec, boost::asio::ip::tcp::socket sock) {
+        [this, serialized](boost::system::error_code ec, boost::asio::ip::tcp::socket sock) {
             if (ec)
                 return;
+            if (!SimulateTorHandshakeSync(sock))
+                return;
+
             for (const auto& byte : serialized) {
                 boost::asio::write(sock, boost::asio::buffer(&byte, 1));
                 std::this_thread::sleep_for(std::chrono::milliseconds(2));
             }
         });
 
-    TcpClient client(clientIo);
-    ASSERT_TRUE(client.Connect("127.0.0.1", serverPort));
+    TcpClient client(clientIo, "127.0.0.1", serverPort);
+    ASSERT_TRUE(client.Connect("test.onion", 80));
 
     auto receivedOpt = client.ReceiveFrame();
 
@@ -195,14 +267,16 @@ TEST_F(TcpClientTest, ReceiveFrameHandlesTcpFragmentationSafely)
 
 TEST_F(TcpClientTest, ReceiveFrameReturnsNulloptOnServerEofDrop)
 {
-    acceptor->async_accept([](boost::system::error_code ec, boost::asio::ip::tcp::socket sock) {
+    acceptor->async_accept([this](boost::system::error_code ec, boost::asio::ip::tcp::socket sock) {
         if (ec)
+            return;
+        if (!SimulateTorHandshakeSync(sock))
             return;
         sock.close();
     });
 
-    TcpClient client(clientIo);
-    ASSERT_TRUE(client.Connect("127.0.0.1", serverPort));
+    TcpClient client(clientIo, "127.0.0.1", serverPort);
+    ASSERT_TRUE(client.Connect("test.onion", 80));
 
     auto receivedOpt = client.ReceiveFrame();
 
@@ -211,15 +285,18 @@ TEST_F(TcpClientTest, ReceiveFrameReturnsNulloptOnServerEofDrop)
 
 TEST_F(TcpClientTest, ReceiveFrameReturnsNulloptOnMalformedVolumetricData)
 {
-    acceptor->async_accept([](boost::system::error_code ec, boost::asio::ip::tcp::socket sock) {
+    acceptor->async_accept([this](boost::system::error_code ec, boost::asio::ip::tcp::socket sock) {
         if (ec)
             return;
+        if (!SimulateTorHandshakeSync(sock))
+            return;
+
         std::vector<std::uint8_t> garbage(50, 0x99);
         boost::asio::write(sock, boost::asio::buffer(garbage));
     });
 
-    TcpClient client(clientIo);
-    ASSERT_TRUE(client.Connect("127.0.0.1", serverPort));
+    TcpClient client(clientIo, "127.0.0.1", serverPort);
+    ASSERT_TRUE(client.Connect("test.onion", 80));
 
     auto receivedOpt = client.ReceiveFrame();
 
