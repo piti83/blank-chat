@@ -18,7 +18,11 @@ using Socket = boost::asio::ip::tcp::socket;
 class TcpClient
 {
 public:
-    explicit TcpClient(IOContext& ioContext);
+    static constexpr std::string_view defaultTorHost = "127.0.0.1";
+    static constexpr uint16_t defaultTorPort = 9050;
+
+    explicit TcpClient(IOContext& ioContext, std::string_view torHost = defaultTorHost,
+                       std::uint16_t torPort = defaultTorPort);
     ~TcpClient() noexcept;
 
     TcpClient(const TcpClient&) = delete;
@@ -27,7 +31,7 @@ public:
     TcpClient(TcpClient&&) noexcept = default;
     auto operator=(TcpClient&&) noexcept -> TcpClient& = default;
 
-    [[nodiscard]] auto Connect(const std::string& host, std::uint16_t port) -> bool;
+    [[nodiscard]] auto Connect(std::string_view onionAddress, std::uint16_t destPort) -> bool;
     auto Disconnect() noexcept -> void;
 
     auto SendFrame(bc::protocol::Frame&& frame) -> bool;
@@ -37,6 +41,8 @@ public:
 private:
     Socket socket;
     bc::protocol::FrameParser parser;
+    std::string torHost;
+    std::uint16_t torPort;
 };
 
 } // namespace bc::network
