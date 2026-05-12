@@ -2,6 +2,7 @@ include(GoogleTest)
 
 add_executable(blank_chat_ut
     gtest_main.cpp
+    libs/cli/repl_test.cpp
     libs/core/logger_test.cpp
     libs/core/secure_buffer_test.cpp
     libs/domain/server/message_broker_test.cpp
@@ -18,6 +19,7 @@ target_link_libraries(blank_chat_ut PRIVATE
     blankchat::protocol
     blankchat::network
     blankchat::domain-server
+    blankchat::cli
 )
 gtest_discover_tests(blank_chat_ut)
 

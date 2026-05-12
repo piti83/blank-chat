@@ -22,6 +22,7 @@ if(BUILD_CLIENT)
     target_link_libraries(blank_chat_client PRIVATE
         blankchat::core
         blankchat::protocol
+        blankchat::cli
         ext::sodium
     )
 
