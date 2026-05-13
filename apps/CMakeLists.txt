@@ -6,7 +6,10 @@ if(BUILD_SERVER)
     target_link_libraries(blank_chat_server PRIVATE
         blankchat::core
         blankchat::protocol
+        blankchat::network
+        blankchat::domain-server
         ext::sodium
+        ext::boost
     )
     install(TARGETS blank_chat_server DESTINATION bin)
 
@@ -25,6 +28,7 @@ if(BUILD_CLIENT)
         blankchat::cli
         ext::sodium
     )
+    install(TARGETS blank_chat_client DESTINATION bin)
 
     set_project_warnings(blank_chat_client)
     enable_project_sanitizers(blank_chat_client)

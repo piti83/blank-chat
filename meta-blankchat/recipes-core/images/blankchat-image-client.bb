@@ -2,9 +2,12 @@ inherit core-image
 
 SUMMARY = "Bootable ISO Client Image (Standard Linux)"
 
-IMAGE_FSTYPES += "iso"
+IMAGE_FSTYPES += "wic"
 
 IMAGE_INSTALL += "packagegroup-base"
+
+IMAGE_FEATURES:remove = "read-only-rootfs"
+IMAGE_FEATURES += "allow-empty-password empty-root-password"
 
 IMAGE_INSTALL += " \
     blank-chat-client \
@@ -19,4 +22,5 @@ IMAGE_INSTALL += " \
     iproute2 \
     net-tools \
     linux-firmware \
+    tor \
 "

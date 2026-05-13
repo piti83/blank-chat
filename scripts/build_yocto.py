@@ -27,6 +27,7 @@ def main():
     yocto_base = project_root.parent / "yocto-dev"
     poky_dir = yocto_base / "poky"
     meta_oe_dir = yocto_base / "meta-openembedded"
+    meta_tor_dir = yocto_base / "meta-tor"
     build_dir = poky_dir / "build"
     meta_blankchat_dir = project_root / "meta-blankchat"
 
@@ -61,6 +62,19 @@ def main():
             ]
         )
 
+    if not meta_tor_dir.exists():
+        print_info("Cloning meta-tor layer (scarthgap)...")
+        run_command(
+            [
+                "git",
+                "clone",
+                "https://github.com/embetrix/meta-tor.git",
+                "-b",
+                "scarthgap",
+                str(meta_tor_dir),
+            ]
+        )
+
     if args.sdk:
         bitbake_target = "bitbake -c populate_sdk blankchat-image-server"
         success_msg = "Yocto: SDK generated successfully! Check yocto-dev/poky/build/tmp/deploy/sdk/"
@@ -82,6 +96,9 @@ def main():
             source oe-init-build-env {build_dir}
 
             bitbake-layers add-layer {meta_oe_dir}/meta-oe 2>/dev/null || true
+            bitbake-layers add-layer {meta_oe_dir}/meta-python 2>/dev/null || true
+            bitbake-layers add-layer {meta_oe_dir}/meta-networking 2>/dev/null || true
+            bitbake-layers add-layer {meta_tor_dir} 2>/dev/null || true
             bitbake-layers add-layer {meta_blankchat_dir} 2>/dev/null || true
 
             if ! grep -q 'MACHINE = "genericx86-64"' conf/local.conf; then
@@ -91,6 +108,17 @@ def main():
             if ! grep -q 'INHERIT += "externalsrc"' conf/local.conf; then
                 echo 'INHERIT += "externalsrc"' >> conf/local.conf
                 echo 'EXTERNALSRC:pn-blank-chat = "{project_root}"' >> conf/local.conf
+            fi
+
+            if ! grep -q 'DISTRO_FEATURES:append = " systemd usrmerge"' conf/local.conf; then
+                echo 'DISTRO_FEATURES:append = " systemd usrmerge"' >> conf/local.conf
+                echo 'VIRTUAL-RUNTIME_init_manager = "systemd"' >> conf/local.conf
+                echo 'DISTRO_FEATURES_BACKFILL_CONSIDERED = "sysvinit"' >> conf/local.conf
+                echo 'VIRTUAL-RUNTIME_initscripts = ""' >> conf/local.conf
+            fi
+
+            if ! grep -q 'IMAGE_FEATURES:remove = "read-only-rootfs"' conf/local.conf; then
+                echo 'IMAGE_FEATURES:remove = "read-only-rootfs"' >> conf/local.conf
             fi
 
             sed -i '/UNINATIVE_MAXGLIBCVERSION/d' conf/local.conf
