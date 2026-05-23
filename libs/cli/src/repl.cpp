@@ -72,7 +72,7 @@ auto Repl::Run() -> void
 {
     std::cout << "--- Blank Chat ---\n";
     while (true) {
-        std::cout << "> ";
+        std::cout << ">>> ";
         std::string cmd;
         if (!(std::cin >> cmd) || cmd == "exit") {
             break;

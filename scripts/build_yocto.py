@@ -1,15 +1,24 @@
 #!/usr/bin/env python3
 
 import argparse
+import os
+import sys
 
-from utils import change_to_project_root, print_info, print_success, run_command
+from utils import (
+    change_to_project_root,
+    print_error,
+    print_info,
+    print_success,
+    run_command,
+)
 
 
 def main():
     project_root = change_to_project_root()
+    workspace_root = project_root.parent
 
     parser = argparse.ArgumentParser(
-        description="Automate Yocto environment setup and building."
+        description="Automate Yocto environment setup and building inside Docker."
     )
     parser.add_argument(
         "--sdk",
@@ -20,7 +29,7 @@ def main():
         "--target",
         choices=["server", "client", "both"],
         default="both",
-        help="Which production ISO to build (default: both).",
+        help="Which production image to build (default: both).",
     )
     args = parser.parse_args()
 
@@ -75,6 +84,36 @@ def main():
             ]
         )
 
+    dockerfile = project_root / "scripts" / "Dockerfile.yocto"
+
+    if not dockerfile.exists():
+        print_error(
+            f"Cannot find {dockerfile}. Ensure the file exists in your scripts directory."
+        )
+        sys.exit(1)
+
+    print_info("Ensuring Yocto Docker builder image is ready...")
+
+    uid = os.getuid()
+    gid = os.getgid()
+
+    run_command(
+        [
+            "docker",
+            "build",
+            "-t",
+            "blankchat-yocto-builder",
+            "--build-arg",
+            f"UID={uid}",
+            "--build-arg",
+            f"GID={gid}",
+            "-f",
+            str(dockerfile),
+            str(project_root),
+        ],
+        fail_msg="Failed to build the Yocto Docker builder image.",
+    )
+
     if args.sdk:
         bitbake_target = "bitbake -c populate_sdk blankchat-image-server"
         success_msg = "Yocto: SDK generated successfully! Check yocto-dev/poky/build/tmp/deploy/sdk/"
@@ -82,13 +121,13 @@ def main():
     else:
         if args.target == "server":
             bitbake_target = "bitbake blankchat-image-server"
-            success_msg = "Yocto: Server ISO generated successfully!"
+            success_msg = "Yocto: Server image generated successfully!"
         elif args.target == "client":
             bitbake_target = "bitbake blankchat-image-client"
-            success_msg = "Yocto: Client ISO generated successfully!"
+            success_msg = "Yocto: Client image generated successfully!"
         else:
             bitbake_target = "bitbake blankchat-image-server blankchat-image-client"
-            success_msg = "Yocto: BOTH Server and Client ISOs generated successfully!"
+            success_msg = "Yocto: Server and Client images generated successfully!"
         print_info(f"Starting BitBake engine to build the {args.target} image(s)...")
 
     bash_command = f"""
@@ -101,32 +140,32 @@ def main():
             bitbake-layers add-layer {meta_tor_dir} 2>/dev/null || true
             bitbake-layers add-layer {meta_blankchat_dir} 2>/dev/null || true
 
-            if ! grep -q 'MACHINE = "genericx86-64"' conf/local.conf; then
-                echo 'MACHINE = "genericx86-64"' >> conf/local.conf
-            fi
-
-            if ! grep -q 'INHERIT += "externalsrc"' conf/local.conf; then
-                echo 'INHERIT += "externalsrc"' >> conf/local.conf
-                echo 'EXTERNALSRC:pn-blank-chat = "{project_root}"' >> conf/local.conf
-            fi
-
-            if ! grep -q 'DISTRO_FEATURES:append = " systemd usrmerge"' conf/local.conf; then
-                echo 'DISTRO_FEATURES:append = " systemd usrmerge"' >> conf/local.conf
-                echo 'VIRTUAL-RUNTIME_init_manager = "systemd"' >> conf/local.conf
-                echo 'DISTRO_FEATURES_BACKFILL_CONSIDERED = "sysvinit"' >> conf/local.conf
-                echo 'VIRTUAL-RUNTIME_initscripts = ""' >> conf/local.conf
-            fi
-
-            if ! grep -q 'IMAGE_FEATURES:remove = "read-only-rootfs"' conf/local.conf; then
-                echo 'IMAGE_FEATURES:remove = "read-only-rootfs"' >> conf/local.conf
-            fi
+            echo 'MACHINE = "genericx86-64"' > conf/auto.conf
+            echo 'DISTRO = "blankchat"' >> conf/auto.conf
+            echo 'INHERIT += "externalsrc"' >> conf/auto.conf
+            echo 'EXTERNALSRC:pn-blank-chat = "{project_root}"' >> conf/auto.conf
 
             sed -i '/UNINATIVE_MAXGLIBCVERSION/d' conf/local.conf
 
             {bitbake_target}
             """
 
-    run_command(["bash", "-c", bash_command], fail_msg="Yocto operation failed.")
+    docker_cmd = [
+        "docker",
+        "run",
+        "--rm",
+        "-v",
+        f"{workspace_root}:{workspace_root}",
+        "-w",
+        str(poky_dir),
+    ]
+
+    if sys.stdout.isatty():
+        docker_cmd.append("-it")
+
+    docker_cmd.extend(["blankchat-yocto-builder", "bash", "-c", bash_command])
+
+    run_command(docker_cmd, fail_msg="Yocto compilation failed.")
     print_success(success_msg)
 
 

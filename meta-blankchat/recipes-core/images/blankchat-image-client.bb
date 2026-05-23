@@ -1,6 +1,6 @@
 inherit core-image
 
-SUMMARY = "Bootable ISO Client Image (Standard Linux)"
+SUMMARY = "Bootable Client Image"
 
 IMAGE_FSTYPES += "wic"
 
