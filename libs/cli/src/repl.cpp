@@ -1,5 +1,3 @@
-#include "cli/repl.h"
-
 #include <algorithm>
 #include <array>
 #include <iostream>
@@ -9,6 +7,8 @@
 #include <protocol/action_type.h>
 #include <protocol/frame.h>
 #include <protocol/mailbox_id.h>
+
+#include "cli/repl.h"
 
 namespace {
 constexpr std::size_t maxPayloadReserve = 4096;
@@ -72,7 +72,7 @@ auto Repl::Run() -> void
 {
     std::cout << "--- Blank Chat ---\n";
     while (true) {
-        std::cout << "> ";
+        std::cout << ">>> ";
         std::string cmd;
         if (!(std::cin >> cmd) || cmd == "exit") {
             break;

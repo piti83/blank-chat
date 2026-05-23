@@ -140,25 +140,10 @@ def main():
             bitbake-layers add-layer {meta_tor_dir} 2>/dev/null || true
             bitbake-layers add-layer {meta_blankchat_dir} 2>/dev/null || true
 
-            if ! grep -q 'MACHINE = "genericx86-64"' conf/local.conf; then
-                echo 'MACHINE = "genericx86-64"' >> conf/local.conf
-            fi
-
-            if ! grep -q 'INHERIT += "externalsrc"' conf/local.conf; then
-                echo 'INHERIT += "externalsrc"' >> conf/local.conf
-                echo 'EXTERNALSRC:pn-blank-chat = "{project_root}"' >> conf/local.conf
-            fi
-
-            if ! grep -q 'DISTRO_FEATURES:append = " systemd usrmerge"' conf/local.conf; then
-                echo 'DISTRO_FEATURES:append = " systemd usrmerge"' >> conf/local.conf
-                echo 'VIRTUAL-RUNTIME_init_manager = "systemd"' >> conf/local.conf
-                echo 'DISTRO_FEATURES_BACKFILL_CONSIDERED = "sysvinit"' >> conf/local.conf
-                echo 'VIRTUAL-RUNTIME_initscripts = ""' >> conf/local.conf
-            fi
-
-            if ! grep -q 'IMAGE_FEATURES:remove = "read-only-rootfs"' conf/local.conf; then
-                echo 'IMAGE_FEATURES:remove = "read-only-rootfs"' >> conf/local.conf
-            fi
+            echo 'MACHINE = "genericx86-64"' > conf/auto.conf
+            echo 'DISTRO = "blankchat"' >> conf/auto.conf
+            echo 'INHERIT += "externalsrc"' >> conf/auto.conf
+            echo 'EXTERNALSRC:pn-blank-chat = "{project_root}"' >> conf/auto.conf
 
             sed -i '/UNINATIVE_MAXGLIBCVERSION/d' conf/local.conf
 

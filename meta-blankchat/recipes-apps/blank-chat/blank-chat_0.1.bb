@@ -4,11 +4,11 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=81525c65625e3ded655268549f061212"
 
 S = "${WORKDIR}/git"
 
-DEPENDS = "libsodium spdlog googletest boost"
+DEPENDS = "libsodium spdlog boost"
 
 inherit cmake pkgconfig
 
-EXTRA_OECMAKE = "-DBUILD_TESTING=OFF -DBC_ENABLE_LOGS=ON -DBUILD_CLIENT=ON -DBUILD_SERVER=ON"
+EXTRA_OECMAKE = "-DBUILD_TESTING=OFF -DBC_ENABLE_LOGS=OFF -DBUILD_CLIENT=ON -DBUILD_SERVER=ON"
 
 PACKAGES =+ "${PN}-server ${PN}-client"
 

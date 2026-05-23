@@ -11,11 +11,6 @@ auto main() -> int
     try {
         bc::core::Logger::Init();
 
-        if (sodium_init() < 0) {
-            BC_CRITICAL("High Assurance Crash: Failed to initialize libsodium subsystem.");
-            return 1;
-        }
-
         bc::cli::Repl repl;
         repl.Run();
 
