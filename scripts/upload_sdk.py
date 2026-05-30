@@ -37,7 +37,7 @@ def main():
 
     print_info("Searching for the SDK installation script...")
 
-    sdk_files = list(sdk_dir.glob("poky-glibc-x86_64-blankchat-image-server-*.sh"))
+    sdk_files = list(sdk_dir.glob("*.sh"))
 
     if not sdk_files:
         print_error("No SDK .sh file found in the deploy directory.")

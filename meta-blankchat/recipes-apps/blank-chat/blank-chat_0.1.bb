@@ -4,7 +4,7 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=81525c65625e3ded655268549f061212"
 
 S = "${WORKDIR}/git"
 
-DEPENDS = "libsodium spdlog boost"
+DEPENDS = "libsodium spdlog boost simdjson tomlplusplus"
 
 inherit cmake pkgconfig
 

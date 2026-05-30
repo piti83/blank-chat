@@ -9,6 +9,8 @@ enable_coverage(domain_server)
 
 target_link_libraries(domain_server PUBLIC
     blankchat::protocol
+    simdjson::simdjson
+    tomlplusplus::tomlplusplus
 )
 
 target_include_directories(domain_server

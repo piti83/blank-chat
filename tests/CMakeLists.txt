@@ -1,3 +1,4 @@
+find_package(GTest CONFIG REQUIRED)
 include(GoogleTest)
 
 add_executable(blank_chat_ut
