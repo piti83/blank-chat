@@ -30,6 +30,7 @@ if(BUILD_CLIENT)
     add_executable(blank_chat_client client/main.cpp)
     target_link_libraries(blank_chat_client PRIVATE
         blankchat::core
+        blankchat::domain-client
         blankchat::protocol
         blankchat::cli
         ext::sodium

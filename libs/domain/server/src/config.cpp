@@ -8,8 +8,7 @@
 
 namespace bc::domain::server {
 
-[[nodiscard]] auto LoadConfig(const std::filesystem::path& configFilePath)
-    -> std::optional<ServerConfig>
+auto LoadConfig(const std::filesystem::path& configFilePath) -> std::optional<ServerConfig>
 {
     toml::parse_result result = toml::parse_file(configFilePath.string());
 

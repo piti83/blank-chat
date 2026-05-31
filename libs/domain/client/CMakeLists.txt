@@ -8,6 +8,7 @@ enable_clang_tidy(domain_client)
 enable_coverage(domain_client)
 
 target_link_libraries(domain_client PUBLIC
+    blankchat::core
     blankchat::protocol
     simdjson::simdjson
     tomlplusplus::tomlplusplus
