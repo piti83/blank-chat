@@ -1,9 +1,10 @@
+#include "server/config.h"
+
 #include <filesystem>
 #include <optional>
 
 #include <core/logger.h>
 
-#include "server/config.h"
 #include <toml++/toml.hpp>
 
 namespace bc::domain::server {
