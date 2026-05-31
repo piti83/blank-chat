@@ -136,10 +136,8 @@ TEST_F(TcpClientTest, DisconnectClosesSocketSafelyMultipleTimes)
     TcpClient client(clientIo, "127.0.0.1", serverPort);
     ASSERT_TRUE(client.Connect("test.onion", 80));
 
-    EXPECT_NO_THROW({
-        client.Disconnect();
-        client.Disconnect();
-    });
+    client.Disconnect();
+    client.Disconnect();
 }
 
 TEST_F(TcpClientTest, SendFrameSuccessfullyTransmitsDataZeroCopy)

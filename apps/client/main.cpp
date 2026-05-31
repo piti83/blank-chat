@@ -19,6 +19,8 @@ auto main() -> int
         return 1;
     }
 
+    (void)config;
+
     // TODO: utilize config in client
     bc::cli::Repl repl;
     repl.Run();

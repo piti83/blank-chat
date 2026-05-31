@@ -22,6 +22,12 @@ target_link_libraries(blank_chat_ut PRIVATE
     blankchat::domain-server
     blankchat::cli
 )
+
+target_compile_definitions(blank_chat_ut PRIVATE
+    GTEST_HAS_RTTI=0
+    GTEST_HAS_EXCEPTIONS=0
+)
+
 gtest_discover_tests(blank_chat_ut)
 
 set_project_warnings(blank_chat_ut)

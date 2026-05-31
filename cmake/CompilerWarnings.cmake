@@ -5,20 +5,15 @@ function(set_project_warnings target_name)
         -Wpedantic
         -Werror
         -fstack-protector-all
+        -fno-exceptions
+        -fno-unwind-tables
+        -fno-rtti
     )
 
-    if(NOT target_name STREQUAL "blank_chat_ut")
-        target_compile_options(${target_name} PRIVATE
-                -fno-exceptions
-                -fno-unwind-tables
-                -fno-rtti
-            )
-
-        target_compile_definitions(${target_name} PRIVATE
-                SPDLOG_NO_EXCEPTIONS
-                BOOST_NO_EXCEPTIONS
-            )
-    endif()
+    target_compile_definitions(${target_name} PRIVATE
+        SPDLOG_NO_EXCEPTIONS
+        BOOST_NO_EXCEPTIONS
+    )
 
     if(BC_ENABLE_LOGS)
         target_compile_definitions(${target_name} PRIVATE
