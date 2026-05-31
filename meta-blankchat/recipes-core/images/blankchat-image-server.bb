@@ -33,5 +33,6 @@ TOOLCHAIN_TARGET_TASK:append = " \
     googletest-dev \
     boost-dev \
     simdjson-dev \
+    simdjson-staticdev \
     tomlplusplus-dev \
 "
