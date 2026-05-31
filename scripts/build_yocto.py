@@ -51,7 +51,7 @@ def main():
             [
                 "git",
                 "clone",
-                "git://git.yoctoproject.org/poky",
+                "https://git.yoctoproject.org/git/poky",
                 "-b",
                 "scarthgap",
                 str(poky_dir),
@@ -64,7 +64,7 @@ def main():
             [
                 "git",
                 "clone",
-                "git://git.openembedded.org/meta-openembedded",
+                "https://git.openembedded.org/meta-openembedded",
                 "-b",
                 "scarthgap",
                 str(meta_oe_dir),

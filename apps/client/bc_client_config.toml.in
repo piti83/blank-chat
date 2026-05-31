@@ -1,0 +1,11 @@
+[network]
+tor_socks_host = "127.0.0.1"
+tor_socks_port = 9050
+
+[obfuscation]
+mode = "cbr"
+cbr_interval_ms = 5000
+poisson_lambda = 5.0
+
+[storage]
+contacts_file_path = "contacts.json"
