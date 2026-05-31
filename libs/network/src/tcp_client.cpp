@@ -1,13 +1,12 @@
-#include "network/tcp_client.h"
-
 #include <algorithm>
 #include <array>
-#include <exception>
 #include <iterator>
 #include <utility>
 #include <vector>
 
 #include <core/logger.h>
+
+#include "network/tcp_client.h"
 
 namespace bc::network {
 
@@ -132,35 +131,29 @@ TcpClient::~TcpClient() noexcept
 
 auto TcpClient::Connect(std::string_view onionAddress, std::uint16_t destPort) -> bool
 {
-    try {
-        boost::asio::ip::tcp::resolver resolver(socket.get_executor());
+    boost::asio::ip::tcp::resolver resolver(socket.get_executor());
 
-        auto endpoints = resolver.resolve(torHost, std::to_string(torPort));
+    auto endpoints = resolver.resolve(torHost, std::to_string(torPort));
 
-        boost::system::error_code errorCode;
-        boost::asio::connect(socket, endpoints, errorCode);
+    boost::system::error_code errorCode;
+    boost::asio::connect(socket, endpoints, errorCode);
 
-        if (errorCode) {
-            BC_WARN("Failed to connect to local Tor proxy at {}:{}. Error: {}", torHost, torPort,
-                    errorCode.message());
-            return false;
-        }
-
-        BC_INFO("Connected to Tor proxy. Negotiating SOCKS5h handshake for {}...", onionAddress);
-
-        if (!detail::PerformTorHandshake(socket, onionAddress, destPort)) {
-            BC_ERROR("Tor Handshake failed. Dropping connection.");
-            Disconnect();
-            return false;
-        }
-
-        BC_INFO("Successfully built Tor circuit to {} on port {}", onionAddress, destPort);
-        return true;
-
-    } catch (const std::exception& e) {
-        BC_ERROR("Exception during connection: {}", e.what());
+    if (errorCode) {
+        BC_WARN("Failed to connect to local Tor proxy at {}:{}. Error: {}", torHost, torPort,
+                errorCode.message());
         return false;
     }
+
+    BC_INFO("Connected to Tor proxy. Negotiating SOCKS5h handshake for {}...", onionAddress);
+
+    if (!detail::PerformTorHandshake(socket, onionAddress, destPort)) {
+        BC_ERROR("Tor Handshake failed. Dropping connection.");
+        Disconnect();
+        return false;
+    }
+
+    BC_INFO("Successfully built Tor circuit to {} on port {}", onionAddress, destPort);
+    return true;
 }
 
 auto TcpClient::Disconnect() noexcept -> void

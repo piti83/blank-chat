@@ -22,8 +22,8 @@ namespace bc::domain::server {
     ServerConfig config;
 
     // Listen host
-    if (auto hasValue = table["network"]["listen_host"].value<std::string>()) {
-        config.networkConfig.listenHost = std::move(*hasValue);
+    if (auto opt = table.at_path("network.listen_host").value<std::string>()) {
+        config.networkConfig.listenHost = std::move(*opt);
     } else {
         BC_ERROR("Missing or invalid [network][listen_host] in server config file: {}",
                  configFilePath.string());
@@ -31,8 +31,8 @@ namespace bc::domain::server {
     }
 
     // Listen port
-    if (auto hasValue = table["network"]["listen_port"].value<std::uint16_t>()) {
-        config.networkConfig.listenPort = *hasValue;
+    if (auto opt = table.at_path("network.listen_port").value<std::uint16_t>()) {
+        config.networkConfig.listenPort = *opt;
     } else {
         BC_ERROR("Missing or invalid [network][listen_port] in server config file: {}",
                  configFilePath.string());
@@ -40,8 +40,8 @@ namespace bc::domain::server {
     }
 
     // Tor Control Host
-    if (auto hasValue = table["network"]["tor_control_host"].value<std::string>()) {
-        config.networkConfig.torControlHost = std::move(*hasValue);
+    if (auto opt = table.at_path("network.tor_control_host").value<std::string>()) {
+        config.networkConfig.torControlHost = std::move(*opt);
     } else {
         BC_ERROR("Missing or invalid [network][tor_control_host] in server config file: {}",
                  configFilePath.string());
@@ -49,8 +49,8 @@ namespace bc::domain::server {
     }
 
     // Tor Control Port
-    if (auto hasValue = table["network"]["tor_control_port"].value<std::uint16_t>()) {
-        config.networkConfig.torControlPort = *hasValue;
+    if (auto opt = table.at_path("network.tor_control_port").value<std::uint16_t>()) {
+        config.networkConfig.torControlPort = *opt;
     } else {
         BC_ERROR("Missing or invalid [network][tor_control_port] in server config file: {}",
                  configFilePath.string());
@@ -58,8 +58,8 @@ namespace bc::domain::server {
     }
 
     // Memory Quota Percent
-    if (auto hasValue = table["security"]["memory_quota_percent"].value<std::uint8_t>()) {
-        config.securityConfig.memoryQuotaPercent = *hasValue;
+    if (auto opt = table.at_path("security.memory_quota_percent").value<std::uint8_t>()) {
+        config.securityConfig.memoryQuotaPercent = *opt;
     } else {
         BC_ERROR("Missing or invalid [security][memory_quota_percent] in server config file: {}",
                  configFilePath.string());
@@ -67,8 +67,8 @@ namespace bc::domain::server {
     }
 
     // Max Message Per Mailbox
-    if (auto hasValue = table["security"]["max_messages_per_mailbox"].value<std::uint32_t>()) {
-        config.securityConfig.maxMessagesPerMailbox = *hasValue;
+    if (auto opt = table.at_path("security.max_messages_per_mailbox").value<std::uint32_t>()) {
+        config.securityConfig.maxMessagesPerMailbox = *opt;
     } else {
         BC_ERROR(
             "Missing or invalid [security][max_messages_per_mailbox] in server config file: {}",

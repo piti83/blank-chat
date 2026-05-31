@@ -1,4 +1,5 @@
 add_library(lib_core STATIC
+    src/boost_exception_handler.cpp
     src/logger.cpp
     src/secure_buffer.cpp
 )

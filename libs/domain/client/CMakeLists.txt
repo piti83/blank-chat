@@ -1,5 +1,5 @@
 add_library(domain_client STATIC
-
+    src/config.cpp
 )
 
 set_project_warnings(domain_client)
