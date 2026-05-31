@@ -1,0 +1,9 @@
+[network]
+listen_host = "127.0.0.1"
+listen_port = 8080
+tor_control_host = "127.0.0.1"
+tor_control_port = 9051
+
+[security]
+memory_quota_percent = 80
+max_messages_per_mailbox = 50
