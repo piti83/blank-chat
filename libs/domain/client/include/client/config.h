@@ -26,7 +26,7 @@ struct ObfuscationConfig
 
 struct StorageConfig
 {
-    std::string constactsFilePath{"contacts.json"};
+    std::string contactsFilePath{"contacts.json"};
 };
 
 struct ClientConfig

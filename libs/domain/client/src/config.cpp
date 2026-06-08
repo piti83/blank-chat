@@ -1,10 +1,9 @@
-#include "client/config.h"
-
 #include <filesystem>
 #include <optional>
 
 #include <core/logger.h>
 
+#include "client/config.h"
 #include <toml++/toml.hpp>
 
 namespace bc::domain::client {
@@ -69,7 +68,7 @@ auto LoadStorageConfig(const toml::table& table, ClientConfig& config,
 {
     // Contacts File Path
     if (auto opt = table.at_path("storage.contacts_file_path").value<std::string>()) {
-        config.storageConfig.constactsFilePath = std::move(*opt);
+        config.storageConfig.contactsFilePath = std::move(*opt);
     } else {
         BC_ERROR("Missing or invalid [storage][contacts_file_path] in client config file: {}",
                  path.string());

@@ -1,0 +1,36 @@
+#ifndef BC_LIBS_DOMAIN_CLIENT_INCLUDE_ADDRESS_BOOK_H_
+#define BC_LIBS_DOMAIN_CLIENT_INCLUDE_ADDRESS_BOOK_H_
+
+#include <unordered_map>
+
+#include <client/contact.h>
+#include <core/string_hash.h>
+
+namespace bc::domain::client {
+
+class AddressBook
+{
+public:
+    AddressBook() = default;
+    AddressBook(const AddressBook&) = delete;
+    AddressBook(AddressBook&&) = delete;
+
+    auto operator=(const AddressBook&) -> AddressBook& = delete;
+    auto operator=(AddressBook&&) -> AddressBook& = delete;
+
+    ~AddressBook() = default;
+
+    auto Initialize() -> void;
+
+    auto AddContact(std::string alias, const PublicKeyType& publicKey,
+                    std::optional<std::string> note) -> void;
+    auto GetContact(std::string_view alias) -> const Contact*;
+    auto GetContactInfo(std::string_view alias) -> std::string;
+
+private:
+    std::unordered_map<std::string, Contact, bc::core::StringHash, std::equal_to<>> contacts;
+};
+
+} // namespace bc::domain::client
+
+#endif // BC_LIBS_DOMAIN_CLIENT_INCLUDE_ADDRESS_BOOK_H_
