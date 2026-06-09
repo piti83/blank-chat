@@ -25,7 +25,6 @@ public:
     auto AddContact(std::string alias, const PublicKeyType& publicKey,
                     std::optional<std::string> note) -> void;
     auto GetContact(std::string_view alias) -> const Contact*;
-    auto GetContactInfo(std::string_view alias) -> std::string;
 
 private:
     std::unordered_map<std::string, Contact, bc::core::StringHash, std::equal_to<>> contacts;
