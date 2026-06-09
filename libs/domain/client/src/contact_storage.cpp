@@ -1,3 +1,5 @@
+#include "client/contact_storage.h"
+
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -9,7 +11,6 @@
 #include <client/raw_contact.h>
 #include <core/logger.h>
 
-#include "client/contact_storage.h"
 #include <simdjson.h>
 
 namespace {
