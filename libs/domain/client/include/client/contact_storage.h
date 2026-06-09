@@ -10,8 +10,8 @@
 namespace bc::domain::client {
 
 auto ParseContacts(const std::filesystem::path& contactsPath) -> std::vector<RawContact>;
-auto SaveContact(std::string_view alias, const PublicKeyType& publicKey,
-                 std::optional<std::string_view> note) -> void;
+auto SaveContact(const std::filesystem::path& contactsPath, std::string_view alias,
+                 const PublicKeyType& publicKey, std::optional<std::string_view> note) -> void;
 
 } // namespace bc::domain::client
 

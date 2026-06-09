@@ -88,6 +88,36 @@ constexpr char HexIntToChar(int v)
     return output;
 }
 
+[[nodiscard]] auto ParseSingleContact(simdjson::ondemand::object& contactObj)
+    -> std::optional<bc::domain::client::RawContact>
+{
+    bc::domain::client::RawContact contact;
+    std::string_view tempView;
+
+    if (static_cast<bool>(contactObj.find_field("alias").get(tempView))) {
+        BC_ERROR("Contact missing required 'alias' field");
+        return std::nullopt;
+    }
+    contact.alias = std::string(tempView);
+
+    if (static_cast<bool>(contactObj.find_field("publicKey").get(tempView))) {
+        BC_ERROR("Contact missing required 'publicKey' field");
+        return std::nullopt;
+    }
+
+    if (!DecodeHexToArray(tempView, contact.publicKey)) {
+        BC_ERROR("Contact '{}' has malformed or incorrect length hex in 'publicKey', skipping.",
+                 contact.alias);
+        return std::nullopt;
+    }
+
+    if (!static_cast<bool>(contactObj.find_field("note").get(tempView))) {
+        contact.note = std::string(tempView);
+    }
+
+    return contact;
+}
+
 } // namespace
 
 namespace bc::domain::client {
@@ -130,31 +160,9 @@ auto ParseContacts(const std::filesystem::path& contactsPath) -> std::vector<Raw
             continue;
         }
 
-        RawContact contact;
-        std::string_view tempView;
-
-        if (static_cast<bool>(contactObj.find_field("alias").get(tempView))) {
-            BC_ERROR("Contact missing required 'alias' field");
-            continue;
+        if (auto contact = ParseSingleContact(contactObj)) {
+            parsedContacts.push_back(std::move(*contact));
         }
-        contact.alias = std::string(tempView);
-
-        if (static_cast<bool>(contactObj.find_field("publicKey").get(tempView))) {
-            BC_ERROR("Contact missing required 'publicKey' field");
-            continue;
-        }
-
-        if (!DecodeHexToArray(tempView, contact.publicKey)) {
-            BC_ERROR("Contact '{}' has malformed or incorrect length hex in 'publicKey', skipping.",
-                     contact.alias);
-            continue;
-        }
-
-        if (!static_cast<bool>(contactObj.find_field("note").get(tempView))) {
-            contact.note = std::string(tempView);
-        }
-
-        parsedContacts.push_back(std::move(contact));
     }
 
     return parsedContacts;

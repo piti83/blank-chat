@@ -1,6 +1,7 @@
 #ifndef BC_LIBS_DOMAIN_CLIENT_INCLUDE_ADDRESS_BOOK_H_
 #define BC_LIBS_DOMAIN_CLIENT_INCLUDE_ADDRESS_BOOK_H_
 
+#include <filesystem>
 #include <unordered_map>
 
 #include <client/contact.h>
@@ -20,7 +21,7 @@ public:
 
     ~AddressBook() = default;
 
-    auto Initialize() -> void;
+    auto Initialize(const std::filesystem::path& pathToContactsFile) -> void;
 
     auto AddContact(std::string alias, const PublicKeyType& publicKey,
                     std::optional<std::string> note) -> void;
@@ -28,6 +29,7 @@ public:
 
 private:
     std::unordered_map<std::string, Contact, bc::core::StringHash, std::equal_to<>> contacts;
+    std::filesystem::path contactsFilePath;
 };
 
 } // namespace bc::domain::client
