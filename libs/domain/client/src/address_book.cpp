@@ -16,7 +16,7 @@ auto AddressBook::Initialize(const std::filesystem::path& pathToContactsFile) ->
     contactsFilePath = pathToContactsFile;
     std::vector<RawContact> contactsVec = ParseContacts(contactsFilePath);
 
-    for (auto& c : contactsVec) {
+    for (const auto& c : contactsVec) {
         contacts[c.alias] = {.alias = c.alias,
                              .publicKey = c.publicKey,
                              .note = c.note,
