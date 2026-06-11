@@ -1,8 +1,8 @@
+#include "crypto/mailbox_derivation.h"
+
 #include <sodium.h>
 
 #include <core/secure_buffer.h>
-
-#include "crypto/mailbox_derivation.h"
 
 namespace bc::crypto {
 

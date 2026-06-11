@@ -1,6 +1,6 @@
-#include <sodium.h>
-
 #include "crypto/identity_key.h"
+
+#include <sodium.h>
 
 namespace bc::crypto {
 

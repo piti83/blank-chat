@@ -1,3 +1,5 @@
+#include "client/address_book.h"
+
 #include <unordered_map>
 
 #include <client/contact.h>
@@ -6,7 +8,6 @@
 #include <crypto/mailbox_derivation.h>
 #include <protocol/mailbox_id.h>
 
-#include "client/address_book.h"
 #include "client/raw_contact.h"
 
 namespace bc::domain::client {
