@@ -21,15 +21,18 @@ public:
 
     ~AddressBook() = default;
 
-    auto Initialize(const std::filesystem::path& pathToContactsFile) -> void;
+    auto Initialize(const std::filesystem::path& pathToContactsFile,
+                    const bc::crypto::IdentityKey& myIdentity) -> void;
 
     auto AddContact(std::string alias, const PublicKeyType& publicKey,
-                    std::optional<std::string> note) -> void;
+                    std::optional<std::string> note) -> bool;
     auto GetContact(std::string_view alias) -> const Contact*;
 
 private:
     std::unordered_map<std::string, Contact, bc::core::StringHash, std::equal_to<>> contacts;
     std::filesystem::path contactsFilePath;
+
+    const bc::crypto::IdentityKey* identity{nullptr};
 };
 
 } // namespace bc::domain::client

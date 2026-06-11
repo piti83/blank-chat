@@ -1,5 +1,6 @@
 add_library(crypto STATIC
-
+    src/identity_key.cpp
+    src/mailbox_derivation.cpp
 )
 
 set_project_warnings(crypto)
@@ -15,6 +16,7 @@ target_include_directories(crypto
 )
 
 target_link_libraries(crypto PUBLIC
+    blankchat::core
     ext::sodium
 )
 

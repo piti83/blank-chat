@@ -68,3 +68,20 @@ TEST_F(LoggerTest, HandlesNullLoggerGracefully)
     BC_INFO("This goes nowhere safely");
     SUCCEED();
 }
+
+TEST_F(LoggerTest, FiltersLogsBelowActiveThreshold)
+{
+    bc::core::Logger::Init();
+    // Intentionally raise the filter threshold above Trace
+    spdlog::set_level(spdlog::level::warn);
+
+    // This TRACE log should hit the 'return' branch in logger.h
+    BC_TRACE("This_should_be_filtered_out");
+
+    spdlog::default_logger()->flush();
+    std::ifstream logFile(logFilePath);
+    std::string content((std::istreambuf_iterator<char>(logFile)),
+                        std::istreambuf_iterator<char>());
+
+    EXPECT_EQ(content.find("This_should_be_filtered_out"), std::string::npos);
+}

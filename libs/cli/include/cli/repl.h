@@ -5,6 +5,8 @@
 
 #include <boost/asio.hpp>
 
+#include <client/address_book.h>
+#include <crypto/identity_key.h>
 #include <network/tcp_client.h>
 
 namespace bc::cli {
@@ -12,7 +14,9 @@ namespace bc::cli {
 class Repl
 {
 public:
-    explicit Repl(std::string_view torHost = bc::network::TcpClient::defaultTorHost,
+    explicit Repl(bc::domain::client::AddressBook& addressBook,
+                  const bc::crypto::IdentityKey& identity,
+                  std::string_view torHost = bc::network::TcpClient::defaultTorHost,
                   std::uint16_t torPort = bc::network::TcpClient::defaultTorPort);
 
     ~Repl() = default;
@@ -29,8 +33,13 @@ private:
     auto HandleSend() -> void;
     auto HandlePoll() -> void;
 
+    auto HandleMyKey() -> void;
+    auto HandleAddContact() -> void;
+
     boost::asio::io_context ioContext;
     bc::network::TcpClient client;
+    bc::domain::client::AddressBook& addressBook;
+    const bc::crypto::IdentityKey& identity;
 };
 
 } // namespace bc::cli
