@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -55,8 +56,8 @@ def main():
     if compile_cmds.exists():
         if root_compile_cmds.exists() or root_compile_cmds.is_symlink():
             root_compile_cmds.unlink()
-        root_compile_cmds.symlink_to(compile_cmds)
-        print_info("Symlinked compile_commands.json to project root.")
+        shutil.copy2(compile_cmds, root_compile_cmds)
+        print_info("Copied compile_commands.json to project root.")
 
     print_success("Build completed successfully!")
 

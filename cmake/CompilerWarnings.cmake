@@ -5,6 +5,14 @@ function(set_project_warnings target_name)
         -Wpedantic
         -Werror
         -fstack-protector-all
+        -fno-exceptions
+        -fno-unwind-tables
+        -fno-rtti
+    )
+
+    target_compile_definitions(${target_name} PRIVATE
+        SPDLOG_NO_EXCEPTIONS
+        BOOST_NO_EXCEPTIONS
     )
 
     if(BC_ENABLE_LOGS)

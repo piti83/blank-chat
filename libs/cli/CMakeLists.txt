@@ -16,7 +16,9 @@ target_include_directories(cli
 
 target_link_libraries(cli PUBLIC
     blankchat::network
+    blankchat::crypto
     blankchat::protocol
+    blankchat::domain-client
 )
 
 add_library(blankchat::cli ALIAS cli)

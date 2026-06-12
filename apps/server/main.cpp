@@ -1,38 +1,37 @@
-#include <cstdint>
-#include <exception>
+#include <filesystem>
 
 #include <boost/asio.hpp>
 
 #include <core/logger.h>
 #include <network/tcp_server.h>
+#include <server/config.h>
 #include <server/message_broker.h>
 
 auto main() -> int
 {
-    try {
+    bc::core::Logger::Init();
+    std::filesystem::path configPath = "/etc/blank-chat/client_config.toml";
 
-        constexpr std::uint16_t defaultPort = 8080;
+    bc::domain::server::ServerConfig config;
 
-        bc::core::Logger::Init();
-
-        BC_INFO("Starting Blank Chat Server...");
-
-        boost::asio::io_context ioContext;
-        bc::domain::server::MessageBroker messageBroker;
-
-        std::uint16_t port = defaultPort;
-        bc::network::TcpServer tcpServer(ioContext, port, messageBroker);
-
-        tcpServer.Start();
-
-        ioContext.run();
-
-        return 0;
-    } catch (const std::exception& e) {
-        BC_CRITICAL("Fatal exception: {}", e.what());
+    if (auto hasVal = bc::domain::server::LoadConfig(configPath)) {
+        config = *hasVal;
+    } else {
+        BC_ERROR("Failed to parse server config file: {}", configPath.string());
         return 1;
-    } catch (...) {
-        BC_CRITICAL("Unknown fatal exception.");
-        return 2;
     }
+
+    BC_INFO("Starting Blank Chat Server...");
+
+    boost::asio::io_context ioContext;
+    bc::domain::server::MessageBroker messageBroker;
+
+    // TODO take config as a parameter and utilize it in class.
+    bc::network::TcpServer tcpServer(ioContext, config.networkConfig.listenPort, messageBroker);
+
+    tcpServer.Start();
+
+    ioContext.run();
+
+    return 0;
 }

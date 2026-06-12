@@ -1,22 +1,23 @@
-add_library(lib_core STATIC
+add_library(core STATIC
+    src/boost_exception_handler.cpp
     src/logger.cpp
     src/secure_buffer.cpp
 )
 
-set_project_warnings(lib_core)
-enable_project_sanitizers(lib_core)
-enable_clang_tidy(lib_core)
-enable_coverage(lib_core)
+set_project_warnings(core)
+enable_project_sanitizers(core)
+enable_clang_tidy(core)
+enable_coverage(core)
 
-target_include_directories(lib_core
+target_include_directories(core
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(lib_core PUBLIC
+target_link_libraries(core PUBLIC
     spdlog::spdlog
 )
 
-add_library(blankchat::core ALIAS lib_core)
+add_library(blankchat::core ALIAS core)

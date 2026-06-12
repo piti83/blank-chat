@@ -11,7 +11,13 @@ if(BUILD_SERVER)
         ext::sodium
         ext::boost
     )
-    install(TARGETS blank_chat_server DESTINATION bin)
+
+    configure_and_install_config(
+        ${CMAKE_CURRENT_SOURCE_DIR}/server/bc_server_config.toml.in
+        bc_server_config.toml
+    )
+
+    install(TARGETS blank_chat_server DESTINATION ${CMAKE_INSTALL_BINDIR})
 
     set_project_warnings(blank_chat_server)
     enable_project_sanitizers(blank_chat_server)
@@ -24,11 +30,18 @@ if(BUILD_CLIENT)
     add_executable(blank_chat_client client/main.cpp)
     target_link_libraries(blank_chat_client PRIVATE
         blankchat::core
+        blankchat::domain-client
         blankchat::protocol
         blankchat::cli
         ext::sodium
     )
-    install(TARGETS blank_chat_client DESTINATION bin)
+
+    configure_and_install_config(
+        ${CMAKE_CURRENT_SOURCE_DIR}/client/bc_client_config.toml.in
+        client_config.toml
+    )
+
+    install(TARGETS blank_chat_client DESTINATION ${CMAKE_INSTALL_BINDIR})
 
     set_project_warnings(blank_chat_client)
     enable_project_sanitizers(blank_chat_client)

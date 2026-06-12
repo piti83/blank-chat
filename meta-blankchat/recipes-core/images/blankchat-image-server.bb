@@ -31,5 +31,8 @@ TOOLCHAIN_TARGET_TASK:append = " \
     libubsan-dev \
     valgrind \
     googletest-dev \
-    boost-dev\
+    boost-dev \
+    simdjson-dev \
+    simdjson-staticdev \
+    tomlplusplus-dev \
 "

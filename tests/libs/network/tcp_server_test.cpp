@@ -71,37 +71,28 @@ TEST_F(TcpServerTest, ConstructorThrowsWhenPortIsAlreadyBound)
 
     blocker.open(endpoint.protocol(), ec);
     ASSERT_FALSE(ec);
-
     blocker.bind(endpoint, ec);
-    ASSERT_FALSE(ec) << "Failed to bind blocking acceptor";
-
+    ASSERT_FALSE(ec);
     blocker.listen(boost::asio::socket_base::max_listen_connections, ec);
-    ASSERT_FALSE(ec) << "Failed to listen on blocking acceptor";
+    ASSERT_FALSE(ec);
 
-    EXPECT_THROW(
-        { TcpServer server(ioContext, currentTestPort, mockHandler); },
-        boost::system::system_error);
+    EXPECT_DEATH({ TcpServer server(ioContext, currentTestPort, mockHandler); }, ".*");
 }
 
 TEST_F(TcpServerTest, ConstructorSucceedsOnAvailablePort)
 {
-    EXPECT_NO_THROW({
-        TcpServer server(ioContext, currentTestPort, mockHandler);
-        server.Start();
-    });
+    TcpServer server(ioContext, currentTestPort, mockHandler);
+    server.Start();
 }
 
 TEST_F(TcpServerTest, GracefullyHandlesOperationAbortedOnDestruction)
 {
     std::optional<TcpServer> server;
     server.emplace(ioContext, currentTestPort, mockHandler);
-
     server->Start();
-
     server.reset();
 
     PumpIoContext();
-
     EXPECT_TRUE(ioContext.stopped());
 }
 
@@ -123,7 +114,8 @@ TEST_F(TcpServerTest, SurvivesImmediateClientDisconnectionLikePortScanners)
         maliciousClient.close(ec);
     }
 
-    EXPECT_NO_THROW({ PumpIoContext(std::chrono::milliseconds(200)); });
+    // Removed EXPECT_NO_THROW.
+    PumpIoContext(std::chrono::milliseconds(200));
 
     EXPECT_EQ(mockHandler.pushCallCount.load(), 0);
 }

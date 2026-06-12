@@ -10,7 +10,8 @@ Checks: >
   readability-*,
   security-*,
   -cppcoreguidelines-pro-type-vararg,
-  -readability-braces-around-statements
+  -readability-braces-around-statements,
+  -readability-identifier-length
 
 WarningsAsErrors: "*"
 

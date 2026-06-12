@@ -13,4 +13,5 @@ target_include_directories(ext_boost INTERFACE ${Boost_INCLUDE_DIRS})
 target_link_libraries(ext_boost INTERFACE ${Boost_LIBRARIES})
 
 find_package(spdlog CONFIG REQUIRED)
-find_package(GTest CONFIG REQUIRED)
+find_package(simdjson CONFIG REQUIRED)
+find_package(tomlplusplus CONFIG REQUIRED)

@@ -12,7 +12,7 @@
 
 namespace {
 constexpr std::size_t maxPayloadReserve = 4096;
-constexpr std::size_t hexIdLength = 32;
+constexpr std::size_t hexPubKeyLength = 64;
 
 auto HexCharToByte(char character) -> std::optional<std::uint8_t>
 {
@@ -30,13 +30,13 @@ auto HexCharToByte(char character) -> std::optional<std::uint8_t>
     return std::nullopt;
 }
 
-auto ParseMailboxId(std::string_view hex) -> std::optional<bc::protocol::MailboxID>
+auto ParsePublicKey(std::string_view hex) -> std::optional<bc::crypto::PublicKeyType>
 {
-    if (hex.length() != hexIdLength) {
+    if (hex.length() != hexPubKeyLength) {
         return std::nullopt;
     }
-    std::array<std::uint8_t, bc::protocol::mailboxIdSize> bytes{};
-    for (std::size_t i = 0; i < bc::protocol::mailboxIdSize; ++i) {
+    bc::crypto::PublicKeyType bytes{};
+    for (std::size_t i = 0; i < bc::crypto::publicKeySize; ++i) {
         auto highNibble = HexCharToByte(hex.at(2 * i));
         auto lowNibble = HexCharToByte(hex.at((2 * i) + 1));
         if (!highNibble || !lowNibble) {
@@ -44,7 +44,7 @@ auto ParseMailboxId(std::string_view hex) -> std::optional<bc::protocol::Mailbox
         }
         bytes.at(i) = static_cast<std::uint8_t>((*highNibble << 4) | *lowNibble);
     }
-    return bc::protocol::MailboxID(bytes);
+    return bytes;
 }
 
 auto ReadSecurePayload() -> bc::protocol::Payload
@@ -60,11 +60,23 @@ auto ReadSecurePayload() -> bc::protocol::Payload
     }
     return payload;
 }
+
+auto PrintHex(std::span<const std::uint8_t> data) -> void
+{
+    constexpr std::array<char, 17> hexChars{"0123456789abcdef"};
+    for (auto b : data) {
+        // NOLINTNEXTLINE
+        std::cout << hexChars.at(b >> 4) << hexChars.at(b & 0x0F);
+    }
+    std::cout << '\n';
+}
 } // namespace
 
 namespace bc::cli {
 
-Repl::Repl(std::string_view torHost, std::uint16_t torPort) : client(ioContext, torHost, torPort)
+Repl::Repl(bc::domain::client::AddressBook& addressBook, const bc::crypto::IdentityKey& identity,
+           std::string_view torHost, std::uint16_t torPort)
+    : client(ioContext, torHost, torPort), addressBook(addressBook), identity(identity)
 {
 }
 
@@ -84,10 +96,41 @@ auto Repl::Run() -> void
             HandleSend();
         } else if (cmd == "poll") {
             HandlePoll();
+        } else if (cmd == "mykey") {
+            HandleMyKey();
+        } else if (cmd == "add") {
+            HandleAddContact();
         } else {
             std::cout << "Unknown command.\n";
             std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
         }
+    }
+}
+
+auto Repl::HandleMyKey() -> void
+{
+    std::cout << "Your Identity Key (Ed25519) for OOB exchange:\n";
+    PrintHex(identity.GetPublicKey());
+}
+
+auto Repl::HandleAddContact() -> void
+{
+    std::string alias;
+    std::string hexKey;
+    if (!(std::cin >> alias >> hexKey)) {
+        return;
+    }
+
+    auto pubKeyOpt = ParsePublicKey(hexKey);
+    if (!pubKeyOpt) {
+        std::cout << "Error: Invalid Public Key format (64 hex characters required).\n";
+        return;
+    }
+
+    if (addressBook.AddContact(alias, *pubKeyOpt, std::nullopt)) {
+        std::cout << "Contact '" << alias << "' added successfully. Mailboxes mapped.\n";
+    } else {
+        std::cout << "Failed to add contact. Mathematically invalid cryptographic key.\n";
     }
 }
 
@@ -108,19 +151,23 @@ auto Repl::HandleConnect() -> void
 
 auto Repl::HandleSend() -> void
 {
-    std::string hexId;
-    if (!(std::cin >> hexId)) {
+    std::string alias;
+    if (!(std::cin >> alias)) {
         return;
     }
-    auto mailboxIdOpt = ParseMailboxId(hexId);
+
     auto payload = ReadSecurePayload();
-    if (!mailboxIdOpt) {
-        std::cout << "Error: Invalid Mailbox ID (32 hex characters required).\n";
+
+    const auto* contact = addressBook.GetContact(alias);
+    if (!static_cast<bool>(contact)) {
+        std::cout << "Error: Contact '" << alias << "' not found in address book.\n";
         std::ranges::fill(payload, 0);
         return;
     }
-    if (client.SendFrame(bc::protocol::Frame::CreatePush(*mailboxIdOpt, std::move(payload)))) {
-        std::cout << "Frame serialized and transmitted.\n";
+
+    if (client.SendFrame(
+            bc::protocol::Frame::CreatePush(contact->txMailboxId, std::move(payload)))) {
+        std::cout << "Frame serialized and transmitted securely to " << alias << ".\n";
     } else {
         std::cout << "Network error during transmission.\n";
     }
@@ -128,20 +175,23 @@ auto Repl::HandleSend() -> void
 
 auto Repl::HandlePoll() -> void
 {
-    std::string hexId;
-    if (!(std::cin >> hexId)) {
+    std::string alias;
+    if (!(std::cin >> alias)) {
         return;
     }
     std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-    auto mailboxIdOpt = ParseMailboxId(hexId);
-    if (!mailboxIdOpt) {
+
+    const auto* contact = addressBook.GetContact(alias);
+    if (!static_cast<bool>(contact)) {
+        std::cout << "Error: Contact '" << alias << "' not found in address book.\n";
         return;
     }
-    if (client.SendFrame(bc::protocol::Frame::CreatePoll(*mailboxIdOpt))) {
+
+    if (client.SendFrame(bc::protocol::Frame::CreatePoll(contact->rxMailboxId))) {
         std::cout << "POLL request sent. Waiting for server response...\n";
         if (auto response = client.ReceiveFrame()) {
             if (response->GetActionType() == bc::protocol::ActionType::PUSH) {
-                std::cout << "New message received: ";
+                std::cout << "New message from " << alias << ": ";
                 for (auto byte : response->GetPayload()) {
                     std::cout << static_cast<char>(byte);
                 }
@@ -152,4 +202,5 @@ auto Repl::HandlePoll() -> void
         }
     }
 }
+
 } // namespace bc::cli

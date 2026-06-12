@@ -17,20 +17,14 @@ public:
     template <typename... Args>
     static auto Log(Level level, std::format_string<Args...> fmt, Args&&... args) noexcept -> void
     {
-        try {
-            auto spdlogLevel = MapLevel(level);
-            auto logger = spdlog::default_logger();
+        auto spdlogLevel = MapLevel(level);
+        auto logger = spdlog::default_logger();
 
-            if (!logger || !logger->should_log(spdlogLevel)) {
-                return;
-            }
-
-            logger->log(spdlogLevel, std::format(fmt, std::forward<Args>(args)...));
-        } catch (const std::exception& e) {
-            std::cerr << "[LOGGER INTERNAL ERROR] " << e.what() << '\n';
-        } catch (...) {
-            std::cerr << "[LOGGER INTERNAL ERROR] Unknown exception during formatting\n";
+        if (!logger || !logger->should_log(spdlogLevel)) {
+            return;
         }
+
+        logger->log(spdlogLevel, std::format(fmt, std::forward<Args>(args)...));
     }
 };
 
