@@ -2,6 +2,7 @@ add_library(core STATIC
     src/boost_exception_handler.cpp
     src/logger.cpp
     src/secure_buffer.cpp
+    src/secure_string.cpp
 )
 
 set_project_warnings(core)
@@ -18,6 +19,7 @@ target_include_directories(core
 
 target_link_libraries(core PUBLIC
     spdlog::spdlog
+    ext::sodium
 )
 
 add_library(blankchat::core ALIAS core)
