@@ -1,11 +1,11 @@
+#include "core/secure_string.h"
+
 #include <cstdlib>
 #include <utility>
 
 #include <sodium.h>
 
 #include <core/logger.h>
-
-#include "core/secure_string.h"
 
 namespace bc::core {
 
