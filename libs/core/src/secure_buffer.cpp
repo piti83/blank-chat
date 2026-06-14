@@ -16,6 +16,10 @@ SecureBuffer::SecureBuffer(std::size_t size)
         BC_CRITICAL("sodium_malloc failed to allocate secure memory for SecureBuffer!");
         std::abort();
     }
+
+    if (bufferData != nullptr) {
+        sodium_memzero(bufferData, bufferSize);
+    }
 }
 
 SecureBuffer::~SecureBuffer() noexcept
