@@ -6,6 +6,7 @@
 #include <gtest/gtest.h>
 
 #include <client/address_book.h>
+#include <crypto/bip39.h>
 #include <crypto/identity_key.h>
 #include <protocol/frame.h>
 
@@ -103,14 +104,8 @@ TEST_F(ReplTest, HandlesEmptyPayloadSecurely)
     Repl repl(testAddressBook, *testIdentity, "127.0.0.1", serverPort);
 
     auto mockContact = bc::crypto::IdentityKey::Generate();
-    std::string pkHex;
-    constexpr char hexChars[] = "0123456789abcdef";
-    for (auto b : mockContact.GetPublicKey()) {
-        pkHex.push_back(hexChars[b >> 4]);
-        pkHex.push_back(hexChars[b & 0x0F]);
-    }
-
-    test_in << "add alice " << pkHex << "\n";
+    auto mnemonic = bc::crypto::bip39::Encode(mockContact.GetPublicKey());
+    test_in << "add alice " << mnemonic.StringView() << "\n";
     test_in << "connect test.onion 80\n";
     test_in << "send alice \n";
     test_in << "exit\n";
@@ -124,14 +119,14 @@ TEST_F(ReplTest, HandlesEmptyPayloadSecurely)
     EXPECT_NE(test_out.str().find("Frame serialized and transmitted"), std::string::npos);
 }
 
-TEST_F(ReplTest, RejectsInvalidHexIdLength)
+TEST_F(ReplTest, RejectsInvalidMnemonic)
 {
     Repl repl(testAddressBook, *testIdentity, "127.0.0.1", serverPort);
 
-    test_in << "add alice 123_invalid_id_short\nexit\n";
+    test_in << "add alice short-invalid-mnemonic\nexit\n";
     repl.Run();
 
-    EXPECT_NE(test_out.str().find("Error: Invalid Public Key format"), std::string::npos)
+    EXPECT_NE(test_out.str().find("Error: Invalid BIP39 Mnemonic"), std::string::npos)
         << "Actual Output: \n"
         << test_out.str();
 }

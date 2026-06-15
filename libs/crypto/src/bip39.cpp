@@ -28,7 +28,7 @@ auto Encode(const PublicKeyType& pubKey) -> core::SecureString
     std::array<uint8_t, publicKeySize + 1> buffer{};
     std::memcpy(buffer.data(), pubKey.data(), publicKeySize);
 
-    buffer[publicKeySize] = hashOut[0];
+    buffer.at(publicKeySize) = hashOut.at(0);
 
     std::size_t wordIndex{};
 
@@ -101,7 +101,7 @@ auto Decode(std::string_view mnemonic) -> std::optional<PublicKeyType>
     std::array<std::uint8_t, crypto_hash_sha256_BYTES> hashOut{};
     crypto_hash_sha256(hashOut.data(), entropyWithChecksum.data(), publicKeySize);
 
-    if (hashOut[0] != entropyWithChecksum[publicKeySize]) {
+    if (hashOut.at(0) != entropyWithChecksum.at(publicKeySize)) {
         sodium_memzero(entropyWithChecksum.data(), entropyWithChecksum.size());
         sodium_memzero(indices.data(), indices.size() * sizeof(std::uint16_t));
         return std::nullopt;
