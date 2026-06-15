@@ -1,51 +1,20 @@
 #include "cli/repl.h"
 
 #include <algorithm>
-#include <array>
 #include <iostream>
 #include <limits>
 #include <optional>
 
+#include <sodium.h>
+
+#include <crypto/bip39.h>
 #include <protocol/action_type.h>
 #include <protocol/frame.h>
 #include <protocol/mailbox_id.h>
 
 namespace {
+
 constexpr std::size_t maxPayloadReserve = 4096;
-constexpr std::size_t hexPubKeyLength = 64;
-
-auto HexCharToByte(char character) -> std::optional<std::uint8_t>
-{
-    if (character >= '0' && character <= '9') {
-        return static_cast<std::uint8_t>(character - '0');
-    }
-    if (character >= 'a' && character <= 'f') {
-        // NOLINTNEXTLINE(cppcoreguidelines-avoid-magic-numbers, readability-magic-numbers)
-        return static_cast<std::uint8_t>(character - 'a' + 10);
-    }
-    if (character >= 'A' && character <= 'F') {
-        // NOLINTNEXTLINE(cppcoreguidelines-avoid-magic-numbers, readability-magic-numbers)
-        return static_cast<std::uint8_t>(character - 'A' + 10);
-    }
-    return std::nullopt;
-}
-
-auto ParsePublicKey(std::string_view hex) -> std::optional<bc::crypto::PublicKeyType>
-{
-    if (hex.length() != hexPubKeyLength) {
-        return std::nullopt;
-    }
-    bc::crypto::PublicKeyType bytes{};
-    for (std::size_t i = 0; i < bc::crypto::publicKeySize; ++i) {
-        auto highNibble = HexCharToByte(hex.at(2 * i));
-        auto lowNibble = HexCharToByte(hex.at((2 * i) + 1));
-        if (!highNibble || !lowNibble) {
-            return std::nullopt;
-        }
-        bytes.at(i) = static_cast<std::uint8_t>((*highNibble << 4) | *lowNibble);
-    }
-    return bytes;
-}
 
 auto ReadSecurePayload() -> bc::protocol::Payload
 {
@@ -61,15 +30,6 @@ auto ReadSecurePayload() -> bc::protocol::Payload
     return payload;
 }
 
-auto PrintHex(std::span<const std::uint8_t> data) -> void
-{
-    constexpr std::array<char, 17> hexChars{"0123456789abcdef"};
-    for (auto b : data) {
-        // NOLINTNEXTLINE
-        std::cout << hexChars.at(b >> 4) << hexChars.at(b & 0x0F);
-    }
-    std::cout << '\n';
-}
 } // namespace
 
 namespace bc::cli {
@@ -109,21 +69,26 @@ auto Repl::Run() -> void
 
 auto Repl::HandleMyKey() -> void
 {
-    std::cout << "Your Identity Key (Ed25519) for OOB exchange:\n";
-    PrintHex(identity.GetPublicKey());
+    std::cout << "Your Identity Key (BIP39 Mnemonic) for OOB exchange:\n";
+    auto mnemonic = crypto::bip39::Encode(identity.GetPublicKey());
+    std::cout << mnemonic.StringView() << "\n";
 }
 
 auto Repl::HandleAddContact() -> void
 {
     std::string alias;
-    std::string hexKey;
-    if (!(std::cin >> alias >> hexKey)) {
+    std::string mnemonicStr;
+
+    if (!(std::cin >> alias >> mnemonicStr)) {
         return;
     }
 
-    auto pubKeyOpt = ParsePublicKey(hexKey);
+    auto pubKeyOpt = bc::crypto::bip39::Decode(mnemonicStr);
+
     if (!pubKeyOpt) {
-        std::cout << "Error: Invalid Public Key format (64 hex characters required).\n";
+        std::cout << "Error: Invalid BIP39 Mnemonic (Check spelling, dashes, and checksum).\n";
+
+        sodium_memzero(mnemonicStr.data(), mnemonicStr.size());
         return;
     }
 
@@ -132,6 +97,8 @@ auto Repl::HandleAddContact() -> void
     } else {
         std::cout << "Failed to add contact. Mathematically invalid cryptographic key.\n";
     }
+
+    sodium_memzero(mnemonicStr.data(), mnemonicStr.size());
 }
 
 auto Repl::HandleConnect() -> void

@@ -7,6 +7,7 @@ add_executable(blank_chat_ut
     libs/core/boost_exception_handler_test.cpp
     libs/core/logger_test.cpp
     libs/core/secure_buffer_test.cpp
+    libs/core/secure_string_test.cpp
     libs/crypto/identity_key_test.cpp
     libs/crypto/mailbox_derivation_test.cpp
     libs/domain/client/address_book_test.cpp

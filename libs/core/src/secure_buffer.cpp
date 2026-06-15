@@ -2,21 +2,32 @@
 
 #include <utility>
 
+#include <sodium.h>
+
+#include <core/logger.h>
+
 namespace bc::core {
 
-SecureBuffer::SecureBuffer(std::size_t size) : bufferSize(size)
+SecureBuffer::SecureBuffer(std::size_t size)
+    : bufferSize(size),
+      bufferData(size > 0 ? static_cast<BufferType*>(sodium_malloc(size)) : nullptr)
 {
-    if (size > 0) {
-        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-        bufferData = new BufferType[size]();
-    } else {
-        bufferData = nullptr;
+    if (size > 0 && bufferData == nullptr) {
+        BC_CRITICAL("sodium_malloc failed to allocate secure memory for SecureBuffer!");
+        std::abort();
+    }
+
+    if (bufferData != nullptr) {
+        sodium_memzero(bufferData, bufferSize);
     }
 }
 
 SecureBuffer::~SecureBuffer() noexcept
 {
-    delete[] bufferData;
+    if (bufferData != nullptr) {
+        sodium_free(bufferData);
+        bufferData = nullptr;
+    }
 }
 
 SecureBuffer::SecureBuffer(SecureBuffer&& other) noexcept
@@ -28,7 +39,9 @@ SecureBuffer::SecureBuffer(SecureBuffer&& other) noexcept
 auto SecureBuffer::operator=(SecureBuffer&& other) noexcept -> SecureBuffer&
 {
     if (this != &other) {
-        delete[] this->bufferData;
+        if (bufferData != nullptr) {
+            sodium_free(bufferData);
+        }
         this->bufferSize = std::exchange(other.bufferSize, 0);
         this->bufferData = std::exchange(other.bufferData, nullptr);
     }

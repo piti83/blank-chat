@@ -1,4 +1,5 @@
 add_library(crypto STATIC
+    src/bip39.cpp
     src/identity_key.cpp
     src/mailbox_derivation.cpp
 )

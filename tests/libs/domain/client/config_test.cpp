@@ -70,4 +70,42 @@ TEST_F(ClientConfigTest, FailsSecurelyOnMissingStorageConfig)
     EXPECT_FALSE(configOpt.has_value());
 }
 
+TEST_F(ClientConfigTest, FailsSecurelyOnMissingNetworkFields)
+{
+    WriteConfig(R"(
+        [network]
+        tor_socks_host = "127.0.0.1"
+
+        [obfuscation]
+        mode = "cbr"
+        cbr_interval_ms = 5000
+        poisson_lambda = 5.0
+
+        [storage]
+        contacts_file_path = "contacts.json"
+    )");
+
+    auto configOpt = LoadConfig(testConfigPath);
+    EXPECT_FALSE(configOpt.has_value()) << "Must fail if tor_socks_port is omitted";
+}
+
+TEST_F(ClientConfigTest, FailsSecurelyOnMissingObfuscationFields)
+{
+    WriteConfig(R"(
+        [network]
+        tor_socks_host = "127.0.0.1"
+        tor_socks_port = 9050
+
+        [obfuscation]
+        mode = "cbr"
+        cbr_interval_ms = 5000
+
+        [storage]
+        contacts_file_path = "contacts.json"
+    )");
+
+    auto configOpt = LoadConfig(testConfigPath);
+    EXPECT_FALSE(configOpt.has_value()) << "Must fail if obfuscation parameters are omitted";
+}
+
 } // namespace bc::domain::client::test
