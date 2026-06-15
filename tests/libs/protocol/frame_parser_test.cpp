@@ -180,4 +180,22 @@ TEST_F(FrameParserTest, IgnoresUnknownActionTypesAndResets)
     EXPECT_FALSE(parser.TryExtractFrame().has_value());
 }
 
+TEST_F(FrameParserTest, DropsStateAndRefusesExcessivePayloadSizes)
+{
+    FrameParser parser;
+
+    std::vector<std::uint8_t> maliciousHeader = {0x01,
+                                                 // 16 byte mailbox ID
+                                                 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,
+                                                 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,
+                                                 // Payload length: 0x7FFFFFFF (Little Endian)
+                                                 0xFF, 0xFF, 0xFF, 0x7F};
+
+    std::size_t consumed = parser.FeedBytes(maliciousHeader);
+
+    EXPECT_EQ(consumed, 21);
+    EXPECT_TRUE(parser.HasError());
+    EXPECT_FALSE(parser.TryExtractFrame().has_value());
+}
+
 } // namespace bc::protocol
