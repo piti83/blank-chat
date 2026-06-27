@@ -2,7 +2,6 @@
 #define BC_LIBS_CORE_INCLUDE_LOGGER_H_
 
 #include <format>
-#include <iostream>
 #include <utility>
 
 #include <core/log_level.h>
