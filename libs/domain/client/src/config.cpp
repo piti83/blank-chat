@@ -33,6 +33,28 @@ auto LoadNetworkConfig(const toml::table& table, ClientConfig& config,
     return true;
 }
 
+auto LoadRelayConfig(const toml::table& table, ClientConfig& config,
+                     [[maybe_unused]] const std::filesystem::path& path) -> bool
+{
+    // Onion address
+    if (auto opt = table.at_path("relay.onion_address").value<std::string>()) {
+        config.relayConfig.onionAddress = std::move(*opt);
+    } else {
+        BC_ERROR("Missing [relay][onion_address] in client config.");
+        return false;
+    }
+
+    // Onion port
+    if (auto opt = table.at_path("relay.onion_port").value<std::uint16_t>()) {
+        config.relayConfig.onionPort = *opt;
+    } else {
+        BC_ERROR("Missing [relay][onion_port] in client config.");
+        return false;
+    }
+
+    return true;
+}
+
 auto LoadObfuscationConfig(const toml::table& table, ClientConfig& config,
                            [[maybe_unused]] const std::filesystem::path& path) -> bool
 {
@@ -91,6 +113,7 @@ auto LoadConfig(const std::filesystem::path& configFilePath) -> std::optional<Cl
     ClientConfig config;
 
     if (!LoadNetworkConfig(table, config, configFilePath) ||
+        !LoadRelayConfig(table, config, configFilePath) ||
         !LoadObfuscationConfig(table, config, configFilePath) ||
         !LoadStorageConfig(table, config, configFilePath)) {
         return std::nullopt;

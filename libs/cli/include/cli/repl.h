@@ -15,9 +15,8 @@ class Repl
 {
 public:
     explicit Repl(bc::domain::client::AddressBook& addressBook,
-                  const bc::crypto::IdentityKey& identity,
-                  std::string_view torHost = bc::network::TcpClient::defaultTorHost,
-                  std::uint16_t torPort = bc::network::TcpClient::defaultTorPort);
+                  const bc::crypto::IdentityKey& identity, std::string_view torHost,
+                  std::uint16_t torPort, std::string relayAddress, std::uint16_t relayPort);
 
     ~Repl() = default;
 
@@ -40,6 +39,9 @@ private:
     bc::network::TcpClient client;
     bc::domain::client::AddressBook& addressBook;
     const bc::crypto::IdentityKey& identity;
+
+    std::string relayAddress;
+    std::uint16_t relayPort;
 };
 
 } // namespace bc::cli

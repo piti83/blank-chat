@@ -13,6 +13,7 @@ IMAGE_INSTALL += " \
     blank-chat-client \
     libsodium \
     spdlog \
+    blankchat-tor-config-client \
 "
 
 IMAGE_INSTALL += " \

@@ -16,13 +16,19 @@ auto main() -> int
     bc::core::Logger::Init();
 
     bc::domain::client::ClientConfig config;
-    std::filesystem::path configPath = "client_config.toml";
+    std::filesystem::path configPath = "/etc/blank-chat/client_config.toml";
 
     if (auto hasVal = bc::domain::client::LoadConfig(configPath)) {
         config = *hasVal;
     } else {
         BC_ERROR("Failed to parse client config file: {}", configPath.string());
         BC_INFO("Falling back to default configuration.");
+    }
+
+    if (config.relayConfig.onionAddress == "CHANGE_ME.onion") {
+        BC_CRITICAL("You must configure the server's .onion address before starting!");
+        BC_INFO("Please edit: {}", configPath.string());
+        return 1;
     }
 
     auto myIdentity = bc::crypto::IdentityKey::Generate();
@@ -32,7 +38,8 @@ auto main() -> int
     addressBook.Initialize(config.storageConfig.contactsFilePath, myIdentity);
 
     bc::cli::Repl repl(addressBook, myIdentity, config.networkConfig.torSocksHost,
-                       config.networkConfig.torSocksPort);
+                       config.networkConfig.torSocksPort, config.relayConfig.onionAddress,
+                       config.relayConfig.onionPort);
     repl.Run();
 
     return 0;

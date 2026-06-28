@@ -31,6 +31,11 @@ def main():
         default="both",
         help="Which production image to build (default: both).",
     )
+    parser.add_argument(
+        "--clean",
+        action="store_true",
+        help="Clean the cache for the app to force a fresh rebuild.",
+    )
     args = parser.parse_args()
 
     yocto_base = project_root.parent / "yocto-dev"
@@ -130,6 +135,13 @@ def main():
             success_msg = "Yocto: Server and Client images generated successfully!"
         print_info(f"Starting BitBake engine to build the {args.target} image(s)...")
 
+    clean_cmd = ""
+    if args.clean:
+        print_info("Cleaning application cache and restoring kernel artifacts...")
+        clean_cmd = (
+            "bitbake -c clean blank-chat && bitbake -c deploy -f virtual/kernel && "
+        )
+
     bash_command = f"""
             cd {poky_dir}
             source oe-init-build-env {build_dir}
@@ -147,7 +159,7 @@ def main():
 
             sed -i '/UNINATIVE_MAXGLIBCVERSION/d' conf/local.conf
 
-            {bitbake_target}
+            {clean_cmd}{bitbake_target}
             """
 
     docker_cmd = [

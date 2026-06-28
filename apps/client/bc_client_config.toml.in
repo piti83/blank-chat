@@ -2,6 +2,10 @@
 tor_socks_host = "127.0.0.1"
 tor_socks_port = 9050
 
+[relay]
+onion_address = "CHANGE_ME.onion"
+onion_port = 80
+
 [obfuscation]
 mode = "cbr"
 cbr_interval_ms = 5000

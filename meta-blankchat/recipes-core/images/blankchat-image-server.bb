@@ -23,6 +23,7 @@ IMAGE_INSTALL += " \
     net-tools \
     linux-firmware \
     tor \
+    blankchat-tor-config-server \
 "
 
 TOOLCHAIN_TARGET_TASK:append = " \

@@ -8,6 +8,7 @@
 namespace bc::domain::client {
 
 constexpr std::uint16_t defaultTorSocksPort = 9050;
+constexpr std::uint16_t defaultOnionPort = 80;
 constexpr std::uint32_t defaultCbrIntervalMs = 5000;
 constexpr float defaultPoissonLambda = 5.0F;
 
@@ -15,6 +16,12 @@ struct NetworkConfig
 {
     std::string torSocksHost{"127.0.0.1"};
     std::uint16_t torSocksPort{defaultTorSocksPort};
+};
+
+struct RelayConfig
+{
+    std::string onionAddress{"CHANGE_ME.onion"};
+    std::uint16_t onionPort{defaultOnionPort};
 };
 
 struct ObfuscationConfig
@@ -32,6 +39,7 @@ struct StorageConfig
 struct ClientConfig
 {
     NetworkConfig networkConfig;
+    RelayConfig relayConfig;
     ObfuscationConfig obfuscationConfig;
     StorageConfig storageConfig;
 };
