@@ -1,9 +1,10 @@
+#include "client/config.h"
+
 #include <filesystem>
 #include <optional>
 
 #include <core/logger.h>
 
-#include "client/config.h"
 #include <toml++/toml.hpp>
 
 namespace bc::domain::client {

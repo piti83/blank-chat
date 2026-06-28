@@ -1,8 +1,8 @@
+#include "network/tor_control.h"
+
 #include <istream>
 
 #include <core/logger.h>
-
-#include "network/tor_control.h"
 
 namespace bc::network {
 

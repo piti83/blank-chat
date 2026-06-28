@@ -1,6 +1,7 @@
+#include "core/terminal.h"
+
 #include <iostream>
 
-#include "core/terminal.h"
 #include <termios.h>
 #include <unistd.h>
 
