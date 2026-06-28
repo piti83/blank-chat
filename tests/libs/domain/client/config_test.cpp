@@ -33,6 +33,10 @@ TEST_F(ClientConfigTest, SuccessfullyParsesValidConfiguration)
         tor_socks_host = "192.168.1.10"
         tor_socks_port = 9052
 
+        [relay]
+        onion_address = "expyuz5.onion"
+        onion_port = 80
+
         [obfuscation]
         mode = "poisson"
         cbr_interval_ms = 1000
@@ -47,9 +51,14 @@ TEST_F(ClientConfigTest, SuccessfullyParsesValidConfiguration)
 
     EXPECT_EQ(configOpt->networkConfig.torSocksHost, "192.168.1.10");
     EXPECT_EQ(configOpt->networkConfig.torSocksPort, 9052);
+
+    EXPECT_EQ(configOpt->relayConfig.onionAddress, "expyuz5.onion");
+    EXPECT_EQ(configOpt->relayConfig.onionPort, 80);
+
     EXPECT_EQ(configOpt->obfuscationConfig.mode, "poisson");
     EXPECT_EQ(configOpt->obfuscationConfig.cbr_interval_ms, 1000);
     EXPECT_FLOAT_EQ(configOpt->obfuscationConfig.poissonLambda, 3.14F);
+
     EXPECT_EQ(configOpt->storageConfig.contactsFilePath, "/secure/contacts.json");
 }
 
@@ -59,6 +68,10 @@ TEST_F(ClientConfigTest, FailsSecurelyOnMissingStorageConfig)
         [network]
         tor_socks_host = "127.0.0.1"
         tor_socks_port = 9050
+
+        [relay]
+        onion_address = "expyuz5.onion"
+        onion_port = 80
 
         [obfuscation]
         mode = "cbr"
@@ -75,6 +88,10 @@ TEST_F(ClientConfigTest, FailsSecurelyOnMissingNetworkFields)
     WriteConfig(R"(
         [network]
         tor_socks_host = "127.0.0.1"
+
+        [relay]
+        onion_address = "expyuz5.onion"
+        onion_port = 80
 
         [obfuscation]
         mode = "cbr"
@@ -95,6 +112,10 @@ TEST_F(ClientConfigTest, FailsSecurelyOnMissingObfuscationFields)
         [network]
         tor_socks_host = "127.0.0.1"
         tor_socks_port = 9050
+
+        [relay]
+        onion_address = "expyuz5.onion"
+        onion_port = 80
 
         [obfuscation]
         mode = "cbr"

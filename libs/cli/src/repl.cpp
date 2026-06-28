@@ -1,5 +1,3 @@
-#include "cli/repl.h"
-
 #include <algorithm>
 #include <iostream>
 #include <limits>
@@ -11,6 +9,8 @@
 #include <protocol/action_type.h>
 #include <protocol/frame.h>
 #include <protocol/mailbox_id.h>
+
+#include "cli/repl.h"
 
 namespace {
 
@@ -35,8 +35,10 @@ auto ReadSecurePayload() -> bc::protocol::Payload
 namespace bc::cli {
 
 Repl::Repl(bc::domain::client::AddressBook& addressBook, const bc::crypto::IdentityKey& identity,
-           std::string_view torHost, std::uint16_t torPort)
-    : client(ioContext, torHost, torPort), addressBook(addressBook), identity(identity)
+           std::string_view torHost, std::uint16_t torPort, std::string relayAddress,
+           std::uint16_t relayPort)
+    : client(ioContext, torHost, torPort), addressBook(addressBook), identity(identity),
+      relayAddress(std::move(relayAddress)), relayPort(relayPort)
 {
 }
 
@@ -103,13 +105,8 @@ auto Repl::HandleAddContact() -> void
 
 auto Repl::HandleConnect() -> void
 {
-    std::string host;
-    std::uint16_t port = 0;
-    if (!(std::cin >> host >> port)) {
-        return;
-    }
-    std::cout << "Connecting to " << host << ":" << port << " via Tor proxy...\n";
-    if (client.Connect(host, port)) {
+    std::cout << "Connecting to " << relayAddress << ":" << relayPort << " via Tor proxy...\n";
+    if (client.Connect(relayAddress, relayPort)) {
         std::cout << "Successfully connected to the Onion network.\n";
     } else {
         std::cout << "Failed to connect (ensure Tor daemon is running).\n";

@@ -101,12 +101,12 @@ TEST_F(ReplTest, HandlesEmptyPayloadSecurely)
         }
     });
 
-    Repl repl(testAddressBook, *testIdentity, "127.0.0.1", serverPort);
+    Repl repl(testAddressBook, *testIdentity, "127.0.0.1", serverPort, "test.onion", 80);
 
     auto mockContact = bc::crypto::IdentityKey::Generate();
     auto mnemonic = bc::crypto::bip39::Encode(mockContact.GetPublicKey());
     test_in << "add alice " << mnemonic.StringView() << "\n";
-    test_in << "connect test.onion 80\n";
+    test_in << "connect\n";
     test_in << "send alice \n";
     test_in << "exit\n";
 
@@ -121,7 +121,7 @@ TEST_F(ReplTest, HandlesEmptyPayloadSecurely)
 
 TEST_F(ReplTest, RejectsInvalidMnemonic)
 {
-    Repl repl(testAddressBook, *testIdentity, "127.0.0.1", serverPort);
+    Repl repl(testAddressBook, *testIdentity, "127.0.0.1", serverPort, "test.onion", 80);
 
     test_in << "add alice short-invalid-mnemonic\nexit\n";
     repl.Run();
@@ -133,7 +133,7 @@ TEST_F(ReplTest, RejectsInvalidMnemonic)
 
 TEST_F(ReplTest, UnknownCommandDoesNotCrash)
 {
-    Repl repl(testAddressBook, *testIdentity, "127.0.0.1", serverPort);
+    Repl repl(testAddressBook, *testIdentity, "127.0.0.1", serverPort, "test.onion", 80);
 
     test_in << "invalid_command_name\nexit\n";
     repl.Run();
@@ -143,7 +143,7 @@ TEST_F(ReplTest, UnknownCommandDoesNotCrash)
 
 TEST_F(ReplTest, SendToUnknownContactFailsSecurely)
 {
-    Repl repl(testAddressBook, *testIdentity, "127.0.0.1", serverPort);
+    Repl repl(testAddressBook, *testIdentity, "127.0.0.1", serverPort, "test.onion", 80);
     test_in << "send ghost \nexit\n";
     repl.Run();
     EXPECT_NE(test_out.str().find("not found in address book"), std::string::npos);
@@ -151,7 +151,7 @@ TEST_F(ReplTest, SendToUnknownContactFailsSecurely)
 
 TEST_F(ReplTest, PollUnknownContactFailsSecurely)
 {
-    Repl repl(testAddressBook, *testIdentity, "127.0.0.1", serverPort);
+    Repl repl(testAddressBook, *testIdentity, "127.0.0.1", serverPort, "test.onion", 80);
     test_in << "poll ghost\nexit\n";
     repl.Run();
     EXPECT_NE(test_out.str().find("not found in address book"), std::string::npos);

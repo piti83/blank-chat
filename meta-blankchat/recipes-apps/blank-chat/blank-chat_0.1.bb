@@ -8,7 +8,7 @@ DEPENDS = "libsodium spdlog boost simdjson tomlplusplus"
 
 inherit cmake pkgconfig
 
-EXTRA_OECMAKE = "-DBUILD_TESTING=OFF -DBC_ENABLE_LOGS=OFF -DBUILD_CLIENT=ON -DBUILD_SERVER=ON"
+EXTRA_OECMAKE = "-DBUILD_TESTING=OFF -DBC_ENABLE_LOGS=ON -DBUILD_CLIENT=ON -DBUILD_SERVER=ON"
 
 PACKAGES =+ "${PN}-server ${PN}-client"
 

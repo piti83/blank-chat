@@ -14,7 +14,7 @@ if(BUILD_SERVER)
 
     configure_and_install_config(
         ${CMAKE_CURRENT_SOURCE_DIR}/server/bc_server_config.toml.in
-        bc_server_config.toml
+        server_config.toml
     )
 
     install(TARGETS blank_chat_server DESTINATION ${CMAKE_INSTALL_BINDIR})

@@ -8,7 +8,16 @@ S = "${WORKDIR}"
 
 do_install() {
     install -d ${D}${sysconfdir}/tor
-    install -m 0644 ${WORKDIR}/torrc-client ${D}${sysconfdir}/tor/torrc
+    install -m 0644 ${WORKDIR}/torrc-client ${D}${sysconfdir}/tor/torrc.custom
 }
 
-FILES:${PN} = "${sysconfdir}/tor/torrc"
+FILES:${PN} = "${sysconfdir}/tor/torrc.custom"
+
+pkg_postinst:${PN}() {
+    #!/bin/sh
+    if [ -n "$D" ]; then
+        cp $D${sysconfdir}/tor/torrc.custom $D${sysconfdir}/tor/torrc
+    else
+        cp ${sysconfdir}/tor/torrc.custom ${sysconfdir}/tor/torrc
+    fi
+}

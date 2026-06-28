@@ -1,16 +1,22 @@
 #include <filesystem>
 
 #include <boost/asio.hpp>
+#include <sodium.h>
 
 #include <core/logger.h>
 #include <network/tcp_server.h>
+#include <network/tor_control.h>
 #include <server/config.h>
 #include <server/message_broker.h>
 
 auto main() -> int
 {
+    if (sodium_init() < 0) {
+        return 1;
+    }
+
     bc::core::Logger::Init();
-    std::filesystem::path configPath = "/etc/blank-chat/client_config.toml";
+    std::filesystem::path configPath = "/etc/blank-chat/server_config.toml";
 
     bc::domain::server::ServerConfig config;
 
@@ -21,16 +27,26 @@ auto main() -> int
         return 1;
     }
 
-    BC_INFO("Starting Blank Chat Server...");
+    BC_INFO("Initializing Blank Chat Ephemeral RAM-Only Server...");
 
     boost::asio::io_context ioContext;
-    bc::domain::server::MessageBroker messageBroker;
 
-    // TODO take config as a parameter and utilize it in class.
+    auto onionAddressOpt = bc::network::TorControl::CreateEphemeralHiddenService(
+        ioContext, config.networkConfig.torControlHost, config.networkConfig.torControlPort,
+        config.networkConfig.listenPort);
+
+    if (!onionAddressOpt) {
+        BC_CRITICAL("Failed to mount Tor service. Ensure Tor is running.");
+        return 1;
+    }
+
+    BC_INFO("Successfully mounted Ephemeral Hidden Service: {}.onion", *onionAddressOpt);
+    BC_INFO("Distribute this address to your clients Out-Of-Band.");
+
+    bc::domain::server::MessageBroker messageBroker;
     bc::network::TcpServer tcpServer(ioContext, config.networkConfig.listenPort, messageBroker);
 
     tcpServer.Start();
-
     ioContext.run();
 
     return 0;

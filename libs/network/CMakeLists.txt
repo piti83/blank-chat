@@ -2,6 +2,7 @@ add_library(network STATIC
     src/tcp_client.cpp
     src/tcp_server.cpp
     src/tcp_session.cpp
+    src/tor_control.cpp
 )
 
 set_project_warnings(network)
