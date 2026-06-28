@@ -31,9 +31,13 @@ auto main() -> int
 
     boost::asio::io_context ioContext;
 
-    auto onionAddressOpt = bc::network::TorControl::CreateEphemeralHiddenService(
-        ioContext, config.networkConfig.torControlHost, config.networkConfig.torControlPort,
-        config.networkConfig.listenPort);
+    bc::network::HiddenServiceConfig hiddenServiceConfig{
+        .controlHost = config.networkConfig.torControlHost,
+        .controlPort = config.networkConfig.torControlPort,
+        .localListenPort = config.networkConfig.listenPort};
+
+    auto onionAddressOpt =
+        bc::network::TorControl::CreateEphemeralHiddenService(ioContext, hiddenServiceConfig);
 
     if (!onionAddressOpt) {
         BC_CRITICAL("Failed to mount Tor service. Ensure Tor is running.");
