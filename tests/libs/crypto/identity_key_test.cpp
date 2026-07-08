@@ -27,8 +27,6 @@ TEST(IdentityKeyTest, FailsSecurelyOnInvalidEd25519Point)
 {
     auto key = IdentityKey::Generate();
 
-    // High Assurance Check: We intentionally corrupt the public key memory
-    // to verify that sodium rejects points not located on the elliptic curve.
     auto* pkData = const_cast<std::uint8_t*>(key.GetPublicKey().data());
     std::fill(pkData, pkData + 32, 0xFF);
 
@@ -40,8 +38,6 @@ TEST(IdentityKeyTest, Curve25519SecretKeyDerivationIsDeterministic)
 {
     auto key = IdentityKey::Generate();
 
-    // High Assurance Check: Ensure the scalar derivation is deterministic
-    // and doesn't rely on uninitialized memory or state.
     auto curveSk1 = key.GetCurve25519SecretKey();
     auto curveSk2 = key.GetCurve25519SecretKey();
 

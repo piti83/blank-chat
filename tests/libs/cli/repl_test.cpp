@@ -27,11 +27,13 @@ protected:
 
     std::optional<bc::crypto::IdentityKey> testIdentity;
     bc::domain::client::AddressBook testAddressBook;
+    bc::domain::client::ConversationCache testCache;
 
     void SetUp() override
     {
         testIdentity.emplace(bc::crypto::IdentityKey::Generate());
         testAddressBook.Initialize("test_contacts.json", *testIdentity);
+        testCache.Initialize("test_cache");
 
         std::cin.clear();
 
@@ -101,7 +103,7 @@ TEST_F(ReplTest, HandlesEmptyPayloadSecurely)
         }
     });
 
-    Repl repl(testAddressBook, *testIdentity, "127.0.0.1", serverPort, "test.onion", 80);
+    Repl repl(testAddressBook, testCache, *testIdentity, "127.0.0.1", serverPort, "test.onion", 80);
 
     auto mockContact = bc::crypto::IdentityKey::Generate();
     auto mnemonic = bc::crypto::bip39::Encode(mockContact.GetPublicKey());
@@ -116,12 +118,14 @@ TEST_F(ReplTest, HandlesEmptyPayloadSecurely)
                                                                             << test_out.str();
 
     EXPECT_NE(test_out.str().find("Successfully connected"), std::string::npos);
-    EXPECT_NE(test_out.str().find("Frame serialized and transmitted"), std::string::npos);
+    EXPECT_NE(test_out.str().find("Message cached as PENDING_ACK"), std::string::npos)
+        << "Actual Output: \n"
+        << test_out.str();
 }
 
 TEST_F(ReplTest, RejectsInvalidMnemonic)
 {
-    Repl repl(testAddressBook, *testIdentity, "127.0.0.1", serverPort, "test.onion", 80);
+    Repl repl(testAddressBook, testCache, *testIdentity, "127.0.0.1", serverPort, "test.onion", 80);
 
     test_in << "add alice short-invalid-mnemonic\nexit\n";
     repl.Run();
@@ -133,7 +137,7 @@ TEST_F(ReplTest, RejectsInvalidMnemonic)
 
 TEST_F(ReplTest, UnknownCommandDoesNotCrash)
 {
-    Repl repl(testAddressBook, *testIdentity, "127.0.0.1", serverPort, "test.onion", 80);
+    Repl repl(testAddressBook, testCache, *testIdentity, "127.0.0.1", serverPort, "test.onion", 80);
 
     test_in << "invalid_command_name\nexit\n";
     repl.Run();
@@ -143,7 +147,7 @@ TEST_F(ReplTest, UnknownCommandDoesNotCrash)
 
 TEST_F(ReplTest, SendToUnknownContactFailsSecurely)
 {
-    Repl repl(testAddressBook, *testIdentity, "127.0.0.1", serverPort, "test.onion", 80);
+    Repl repl(testAddressBook, testCache, *testIdentity, "127.0.0.1", serverPort, "test.onion", 80);
     test_in << "send ghost \nexit\n";
     repl.Run();
     EXPECT_NE(test_out.str().find("not found in address book"), std::string::npos);
@@ -151,7 +155,7 @@ TEST_F(ReplTest, SendToUnknownContactFailsSecurely)
 
 TEST_F(ReplTest, PollUnknownContactFailsSecurely)
 {
-    Repl repl(testAddressBook, *testIdentity, "127.0.0.1", serverPort, "test.onion", 80);
+    Repl repl(testAddressBook, testCache, *testIdentity, "127.0.0.1", serverPort, "test.onion", 80);
     test_in << "poll ghost\nexit\n";
     repl.Run();
     EXPECT_NE(test_out.str().find("not found in address book"), std::string::npos);

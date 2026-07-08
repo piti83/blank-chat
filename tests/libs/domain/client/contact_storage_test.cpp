@@ -57,7 +57,7 @@ TEST_F(ContactStorageTest, RejectsMissingAliasOrPublicKey)
     })");
 
     auto contacts = ParseContacts(testDbPath);
-    EXPECT_TRUE(contacts.empty()); // Both should be skipped due to missing required fields
+    EXPECT_TRUE(contacts.empty());
 }
 
 TEST_F(ContactStorageTest, RejectsMalformedHexInPublicKey)
@@ -76,7 +76,7 @@ TEST_F(ContactStorageTest, RejectsMalformedHexInPublicKey)
     })");
 
     auto contacts = ParseContacts(testDbPath);
-    EXPECT_TRUE(contacts.empty()); // Both should be rejected (non-hex chars & bad length)
+    EXPECT_TRUE(contacts.empty());
 }
 
 TEST_F(ContactStorageTest, SafelyEscapesMaliciousInputDuringSave)
@@ -84,13 +84,11 @@ TEST_F(ContactStorageTest, SafelyEscapesMaliciousInputDuringSave)
     PublicKeyType mockKey{};
     mockKey.fill(0xAA);
 
-    // Attempting a JSON injection attack via alias and note
     std::string maliciousAlias = "eve\", \"admin\": true, \"dummy\": \"";
     std::string maliciousNote = "newline\nand\ttab\\slash";
 
     SaveContact(testDbPath, maliciousAlias, mockKey, maliciousNote);
 
-    // Read it back and verify it parsed as pure strings, not structural JSON
     auto contacts = ParseContacts(testDbPath);
     ASSERT_EQ(contacts.size(), 1);
     EXPECT_EQ(contacts[0].alias, maliciousAlias);

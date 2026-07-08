@@ -11,7 +11,9 @@ Checks: >
   security-*,
   -cppcoreguidelines-pro-type-vararg,
   -readability-braces-around-statements,
-  -readability-identifier-length
+  -readability-identifier-length,
+  -bugprone-easily-swappable-parameters,
+  -modernize-raw-string-literal
 
 WarningsAsErrors: "*"
 

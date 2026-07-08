@@ -2,6 +2,7 @@ add_library(domain_client STATIC
     src/address_book.cpp
     src/config.cpp
     src/contact_storage.cpp
+    src/conversation_cache.cpp
 )
 
 set_project_warnings(domain_client)
