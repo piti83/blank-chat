@@ -45,6 +45,57 @@ auto StringToStatus(std::string_view str) -> bc::domain::client::MessageStatus
     return bc::domain::client::MessageStatus::FAILED;
 }
 
+[[nodiscard]] auto ParseCacheEntry(simdjson::ondemand::parser& parser, std::string_view line)
+    -> std::optional<bc::domain::client::CacheEntry>
+{
+    simdjson::padded_string padded(line);
+    simdjson::ondemand::document doc;
+    auto error = parser.iterate(padded).get(doc);
+
+    if (static_cast<bool>(error)) {
+        BC_WARN("Failed to parse history line");
+        return std::nullopt;
+    }
+
+    simdjson::ondemand::object obj;
+    if (static_cast<bool>(doc.get(obj))) {
+        return std::nullopt;
+    }
+
+    bc::domain::client::CacheEntry entry;
+    std::string_view tempView;
+
+    if (!static_cast<bool>(obj.find_field("id").get(tempView))) {
+        entry.id = std::string(tempView);
+    }
+
+    std::uint64_t ts = 0;
+    if (!static_cast<bool>(obj.find_field("timestamp").get(ts))) {
+        entry.timestamp = ts;
+    }
+
+    if (!static_cast<bool>(obj.find_field("direction").get(tempView))) {
+        entry.direction = StringToDir(tempView);
+    }
+
+    if (!static_cast<bool>(obj.find_field("alias").get(tempView))) {
+        entry.alias = std::string(tempView);
+    }
+
+    if (!static_cast<bool>(obj.find_field("status").get(tempView))) {
+        entry.status = StringToStatus(tempView);
+    }
+
+    if (!static_cast<bool>(obj.find_field("payload").get(tempView))) {
+        entry.payload.resize(tempView.length() / 2);
+        if (!bc::core::DecodeHexToArray(tempView, entry.payload)) {
+            entry.payload.clear();
+        }
+    }
+
+    return entry;
+}
+
 } // namespace
 
 namespace bc::domain::client {
@@ -148,52 +199,9 @@ auto ConversationCache::LoadHistory(std::string_view alias) const -> std::vector
             continue;
         }
 
-        simdjson::padded_string padded(line);
-        simdjson::ondemand::document doc;
-        auto error = parser.iterate(padded).get(doc);
-
-        if (static_cast<bool>(error)) {
-            BC_WARN("Failed to parse history line for {}", alias);
-            continue;
+        if (auto entryOpt = ParseCacheEntry(parser, line)) {
+            result.push_back(std::move(*entryOpt));
         }
-
-        simdjson::ondemand::object obj;
-        if (static_cast<bool>(doc.get(obj))) {
-            continue;
-        }
-
-        CacheEntry entry;
-        std::string_view tempView;
-
-        if (!static_cast<bool>(obj.find_field("id").get(tempView))) {
-            entry.id = std::string(tempView);
-        }
-
-        std::uint64_t ts = 0;
-        if (!static_cast<bool>(obj.find_field("timestamp").get(ts))) {
-            entry.timestamp = ts;
-        }
-
-        if (!static_cast<bool>(obj.find_field("direction").get(tempView))) {
-            entry.direction = StringToDir(tempView);
-        }
-
-        if (!static_cast<bool>(obj.find_field("alias").get(tempView))) {
-            entry.alias = std::string(tempView);
-        }
-
-        if (!static_cast<bool>(obj.find_field("status").get(tempView))) {
-            entry.status = StringToStatus(tempView);
-        }
-
-        if (!static_cast<bool>(obj.find_field("payload").get(tempView))) {
-            entry.payload.resize(tempView.length() / 2);
-            if (!bc::core::DecodeHexToArray(tempView, entry.payload)) {
-                entry.payload.clear();
-            }
-        }
-
-        result.push_back(std::move(entry));
     }
 
     return result;
