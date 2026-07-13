@@ -28,6 +28,7 @@ public:
 
     [[nodiscard]] static auto CreatePush(const MailboxID& mailboxId, Payload&& payload) -> Frame;
     [[nodiscard]] static auto CreatePoll(const MailboxID& mailboxId) -> Frame;
+    [[nodiscard]] static auto CreateAck(const MailboxID& mailboxId, Payload&& payload) -> Frame;
 
     [[nodiscard]] auto Serialize() const -> RawFrame;
 

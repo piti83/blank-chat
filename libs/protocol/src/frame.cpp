@@ -20,6 +20,11 @@ auto Frame::CreatePoll(const MailboxID& mailboxId) -> Frame
     return {ActionType::POLL, mailboxId, Payload{}};
 }
 
+auto Frame::CreateAck(const MailboxID& mailboxId, Payload&& payload) -> Frame
+{
+    return {ActionType::ACK, mailboxId, std::move(payload)};
+}
+
 auto Frame::Serialize() const -> RawFrame
 {
     RawFrame buffer;

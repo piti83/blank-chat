@@ -89,6 +89,8 @@ auto FrameParser::TryExtractFrame() -> std::optional<Frame>
         result = Frame::CreatePush(*currentMailbox, std::move(payloadBuffer));
     } else if (*currentAction == ActionType::POLL) {
         result = Frame::CreatePoll(*currentMailbox);
+    } else if (*currentAction == ActionType::ACK) {
+        result = Frame::CreateAck(*currentMailbox, std::move(payloadBuffer));
     }
 
     headerBuffer.clear();

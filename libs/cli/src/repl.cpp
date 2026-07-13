@@ -187,13 +187,36 @@ auto Repl::HandlePoll() -> void
 
                 cache.AppendMessage(entry);
                 std::cout << "Message cached.\n";
+
+                std::string msgId = bc::core::HashPayload(response->GetPayload());
+
+                bc::protocol::Payload ackPayload(msgId.begin(), msgId.end());
+
+                auto ackFrame =
+                    bc::protocol::Frame::CreateAck(contact->txMailboxId, std::move(ackPayload));
+
+                if (client.SendFrame(std::move(ackFrame))) {
+                    std::cout << "[Background] ACK sent for message ID: " << msgId << ".\n";
+                } else {
+                    std::cout << "[Background] Network error while sending ACK.\n";
+                }
+
+            } else if (response->GetActionType() == bc::protocol::ActionType::ACK) {
+                const auto& payload = response->GetPayload();
+
+                std::string msgId(payload.begin(), payload.end());
+
+                cache.UpdateMessageStatus(alias, msgId,
+                                          bc::domain::client::MessageStatus::DELIVERED);
+                std::cout << "Received ACK for message ID: " << msgId
+                          << ". Status updated to DELIVERED.\n";
+
             } else {
                 std::cout << "Mailbox is empty.\n";
             }
         }
     }
 }
-
 auto Repl::HandleHistory() -> void
 {
     std::string alias;

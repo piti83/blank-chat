@@ -28,7 +28,7 @@ public:
         -> std::optional<bc::protocol::Frame> override;
 
 private:
-    std::unordered_map<bc::protocol::MailboxID, std::queue<bc::protocol::Payload>> queues;
+    std::unordered_map<bc::protocol::MailboxID, std::queue<bc::protocol::Frame>> queues;
 };
 
 } // namespace bc::domain::server
