@@ -1,5 +1,6 @@
 #include "client/conversation_cache.h"
 
+#include <algorithm>
 #include <fstream>
 #include <system_error>
 
@@ -137,19 +138,15 @@ auto ConversationCache::UpdateMessageStatus(std::string_view alias, std::string_
                                             MessageStatus newStatus) -> void
 {
     auto history = LoadHistory(alias);
-    bool updated = false;
 
-    for (auto& entry : history) {
-        if (entry.id == messageId) {
-            entry.status = newStatus;
-            updated = true;
-            break;
-        }
-    }
+    auto it = std::ranges::find_if(
+        history, [messageId](const CacheEntry& entry) -> bool { return entry.id == messageId; });
 
-    if (!updated) {
+    if (it == history.end()) {
         return;
     }
+
+    it->status = newStatus;
 
     auto path = GetFilePathForAlias(alias);
     std::filesystem::path tempPath = path.string() + ".tmp";
