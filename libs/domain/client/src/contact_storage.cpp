@@ -1,6 +1,5 @@
 #include "client/contact_storage.h"
 
-#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <optional>
@@ -10,83 +9,11 @@
 
 #include <client/raw_contact.h>
 #include <core/logger.h>
+#include <core/string_utils.h>
 
 #include <simdjson.h>
 
 namespace {
-
-// NOLINTBEGIN
-constexpr auto HexCharToInt(char c) -> int
-{
-    if (c >= '0' && c <= '9')
-        return c - '0';
-    if (c >= 'a' && c <= 'f')
-        return c - 'a' + 10;
-    if (c >= 'A' && c <= 'F')
-        return c - 'A' + 10;
-    return -1;
-}
-
-constexpr char HexIntToChar(int v)
-{
-    return "0123456789abcdef"[v & 0x0F];
-}
-
-[[nodiscard]] auto DecodeHexToArray(std::string_view hexStr, std::span<uint8_t> outArray) -> bool
-{
-    if (hexStr.length() != outArray.size() * 2) {
-        return false;
-    }
-
-    for (size_t i = 0; i < outArray.size(); ++i) {
-        int high = HexCharToInt(hexStr[i * 2]);
-        int low = HexCharToInt(hexStr[(i * 2) + 1]);
-
-        if (high == -1 || low == -1) {
-            return false;
-        }
-
-        outArray[i] = static_cast<std::uint8_t>((high << 4) | low);
-    }
-    return true;
-}
-
-[[nodiscard]] auto EncodeHex(std::span<const uint8_t> data) -> std::string
-{
-    std::string hex;
-    hex.reserve(data.size() * 2);
-    for (uint8_t b : data) {
-        hex.push_back(HexIntToChar(b >> 4));
-        hex.push_back(HexIntToChar(b & 0x0F));
-    }
-    return hex;
-}
-// NOLINTEND
-
-[[nodiscard]] auto EscapeJsonString(std::string_view input) -> std::string
-{
-    std::string output;
-    output.reserve(input.length() + 4);
-    for (char c : input) {
-        if (c == '"')
-            output += "\\\"";
-        else if (c == '\\')
-            output += "\\\\";
-        else if (c == '\b')
-            output += "\\b";
-        else if (c == '\f')
-            output += "\\f";
-        else if (c == '\n')
-            output += "\\n";
-        else if (c == '\r')
-            output += "\\r";
-        else if (c == '\t')
-            output += "\\t";
-        else
-            output += c;
-    }
-    return output;
-}
 
 [[nodiscard]] auto ParseSingleContact(simdjson::ondemand::object& contactObj)
     -> std::optional<bc::domain::client::RawContact>
@@ -105,7 +32,7 @@ constexpr char HexIntToChar(int v)
         return std::nullopt;
     }
 
-    if (!DecodeHexToArray(tempView, contact.publicKey)) {
+    if (!bc::core::DecodeHexToArray(tempView, contact.publicKey)) {
         BC_ERROR("Contact '{}' has malformed or incorrect length hex in 'publicKey', skipping.",
                  contact.alias);
         return std::nullopt;
@@ -194,11 +121,11 @@ auto SaveContact(const std::filesystem::path& contactsPath, std::string_view ali
         // NOLINTBEGIN(modernize-raw-string-literal)
         const auto& c = contacts.at(i);
         outFile << "    {\n";
-        outFile << "      \"alias\": \"" << EscapeJsonString(c.alias) << "\",\n";
-        outFile << "      \"publicKey\": \"" << EncodeHex(c.publicKey) << "\"";
+        outFile << "      \"alias\": \"" << bc::core::EscapeJsonString(c.alias) << "\",\n";
+        outFile << "      \"publicKey\": \"" << bc::core::EncodeHex(c.publicKey) << "\"";
 
         if (c.note) {
-            outFile << ",\n      \"note\": \"" << EscapeJsonString(*c.note) << "\"\n";
+            outFile << ",\n      \"note\": \"" << bc::core::EscapeJsonString(*c.note) << "\"\n";
         } else {
             outFile << "\n";
         }

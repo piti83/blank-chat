@@ -6,6 +6,7 @@
 #include <boost/asio.hpp>
 
 #include <client/address_book.h>
+#include <client/conversation_cache.h>
 #include <crypto/identity_key.h>
 #include <network/tcp_client.h>
 
@@ -15,6 +16,7 @@ class Repl
 {
 public:
     explicit Repl(bc::domain::client::AddressBook& addressBook,
+                  bc::domain::client::ConversationCache& cache,
                   const bc::crypto::IdentityKey& identity, std::string_view torHost,
                   std::uint16_t torPort, std::string relayAddress, std::uint16_t relayPort);
 
@@ -31,6 +33,7 @@ private:
     auto HandleConnect() -> void;
     auto HandleSend() -> void;
     auto HandlePoll() -> void;
+    auto HandleHistory() -> void;
 
     auto HandleMyKey() -> void;
     auto HandleAddContact() -> void;
@@ -38,6 +41,7 @@ private:
     boost::asio::io_context ioContext;
     bc::network::TcpClient client;
     bc::domain::client::AddressBook& addressBook;
+    bc::domain::client::ConversationCache& cache;
     const bc::crypto::IdentityKey& identity;
 
     std::string relayAddress;

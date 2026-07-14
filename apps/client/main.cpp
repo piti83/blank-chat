@@ -37,7 +37,10 @@ auto main() -> int
     bc::domain::client::AddressBook addressBook;
     addressBook.Initialize(config.storageConfig.contactsFilePath, myIdentity);
 
-    bc::cli::Repl repl(addressBook, myIdentity, config.networkConfig.torSocksHost,
+    bc::domain::client::ConversationCache cache;
+    cache.Initialize("msg_history");
+
+    bc::cli::Repl repl(addressBook, cache, myIdentity, config.networkConfig.torSocksHost,
                        config.networkConfig.torSocksPort, config.relayConfig.onionAddress,
                        config.relayConfig.onionPort);
     repl.Run();

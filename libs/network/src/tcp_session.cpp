@@ -61,8 +61,9 @@ auto TcpSession::ProcessExtractedFrame() -> void
     while (auto frameOpt = parser.TryExtractFrame()) {
         auto& frame = *frameOpt;
 
-        if (frame.GetActionType() == bc::protocol::ActionType::PUSH) {
-            BC_TRACE("Received PUSH frame, injecting into handler.");
+        if (frame.GetActionType() == bc::protocol::ActionType::PUSH ||
+            frame.GetActionType() == bc::protocol::ActionType::ACK) {
+            BC_TRACE("Received PUSH/ACK frame, injecting into handler.");
             handler.ProcessPush(std::move(frame));
         } else if (frame.GetActionType() == bc::protocol::ActionType::POLL) {
             BC_TRACE("Received POLL frame, checking handler for messages.");

@@ -7,7 +7,7 @@ namespace bc::domain::server {
 auto MessageBroker::ProcessPush(bc::protocol::Frame&& frame) -> void
 {
     auto mid = frame.GetMailboxID();
-    queues[mid].push(std::move(frame).ExtractPayload());
+    queues[mid].push(std::move(frame));
 }
 
 auto MessageBroker::ProcessPoll(const bc::protocol::MailboxID& mid)
@@ -19,14 +19,14 @@ auto MessageBroker::ProcessPoll(const bc::protocol::MailboxID& mid)
         return std::nullopt;
     }
 
-    auto payload = std::move(iter->second.front());
+    auto frame = std::move(iter->second.front());
     iter->second.pop();
 
     if (iter->second.empty()) {
         queues.erase(iter);
     }
 
-    return bc::protocol::Frame::CreatePush(mid, std::move(payload));
+    return frame;
 }
 
 } // namespace bc::domain::server

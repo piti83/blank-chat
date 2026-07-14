@@ -114,7 +114,6 @@ TEST_F(TcpServerTest, SurvivesImmediateClientDisconnectionLikePortScanners)
         maliciousClient.close(ec);
     }
 
-    // Removed EXPECT_NO_THROW.
     PumpIoContext(std::chrono::milliseconds(200));
 
     EXPECT_EQ(mockHandler.pushCallCount.load(), 0);

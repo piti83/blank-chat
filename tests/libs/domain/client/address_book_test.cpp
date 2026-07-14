@@ -25,7 +25,6 @@ TEST_F(AddressBookTest, AddContactFailsWhenUninitialized)
     AddressBook book;
     auto peer = bc::crypto::IdentityKey::Generate();
 
-    // AddressBook is missing the host's IdentityKey, derivation must safely abort
     EXPECT_FALSE(book.AddContact("bob", peer.GetPublicKey(), std::nullopt));
 }
 
@@ -53,7 +52,7 @@ TEST_F(AddressBookTest, AddContactFailsWithMathematicallyInvalidKey)
     book.Initialize(testDbPath, myIdentity);
 
     bc::crypto::PublicKeyType invalidKey{};
-    invalidKey.fill(0xFF); // Invalid point on Curve25519
+    invalidKey.fill(0xFF);
 
     EXPECT_FALSE(book.AddContact("hacker", invalidKey, std::nullopt));
 }

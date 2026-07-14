@@ -8,11 +8,14 @@ add_executable(blank_chat_ut
     libs/core/logger_test.cpp
     libs/core/secure_buffer_test.cpp
     libs/core/secure_string_test.cpp
+    libs/core/string_utils_test.cpp
+    libs/crypto/bip39_test.cpp
     libs/crypto/identity_key_test.cpp
     libs/crypto/mailbox_derivation_test.cpp
     libs/domain/client/address_book_test.cpp
     libs/domain/client/config_test.cpp
     libs/domain/client/contact_storage_test.cpp
+    libs/domain/client/conversation_cache_test.cpp
     libs/domain/server/config_test.cpp
     libs/domain/server/message_broker_test.cpp
     libs/network/tcp_client_test.cpp

@@ -7,6 +7,7 @@
 
 #include <sodium.h>
 
+#include <core/string_utils.h>
 #include <crypto/bip39.h>
 #include <protocol/action_type.h>
 #include <protocol/frame.h>
@@ -34,11 +35,12 @@ auto ReadSecurePayload() -> bc::protocol::Payload
 
 namespace bc::cli {
 
-Repl::Repl(bc::domain::client::AddressBook& addressBook, const bc::crypto::IdentityKey& identity,
+Repl::Repl(bc::domain::client::AddressBook& addressBook,
+           bc::domain::client::ConversationCache& cache, const bc::crypto::IdentityKey& identity,
            std::string_view torHost, std::uint16_t torPort, std::string relayAddress,
            std::uint16_t relayPort)
-    : client(ioContext, torHost, torPort), addressBook(addressBook), identity(identity),
-      relayAddress(std::move(relayAddress)), relayPort(relayPort)
+    : client(ioContext, torHost, torPort), addressBook(addressBook), cache(cache),
+      identity(identity), relayAddress(std::move(relayAddress)), relayPort(relayPort)
 {
 }
 
@@ -62,6 +64,8 @@ auto Repl::Run() -> void
             HandleMyKey();
         } else if (cmd == "add") {
             HandleAddContact();
+        } else if (cmd == "history") {
+            HandleHistory();
         } else {
             std::cout << "Unknown command.\n";
             std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
@@ -129,9 +133,20 @@ auto Repl::HandleSend() -> void
         return;
     }
 
-    if (client.SendFrame(
-            bc::protocol::Frame::CreatePush(contact->txMailboxId, std::move(payload)))) {
-        std::cout << "Frame serialized and transmitted securely to " << alias << ".\n";
+    auto payloadCopy = payload;
+    std::string msgId = bc::core::HashPayload(payload);
+    auto frame = bc::protocol::Frame::CreatePush(contact->txMailboxId, std::move(payload));
+
+    if (client.SendFrame(std::move(frame))) {
+        bc::domain::client::CacheEntry entry{
+            .id = msgId,
+            .timestamp = static_cast<std::uint64_t>(std::time(nullptr)),
+            .direction = bc::domain::client::MessageDirection::OUTBOUND,
+            .alias = std::string(alias),
+            .status = bc::domain::client::MessageStatus::PENDING_ACK,
+            .payload = payloadCopy};
+        cache.AppendMessage(entry);
+        std::cout << "Message cached as PENDING_ACK (ID: " << msgId << ").\n";
     } else {
         std::cout << "Network error during transmission.\n";
     }
@@ -153,6 +168,7 @@ auto Repl::HandlePoll() -> void
 
     if (client.SendFrame(bc::protocol::Frame::CreatePoll(contact->rxMailboxId))) {
         std::cout << "POLL request sent. Waiting for server response...\n";
+
         if (auto response = client.ReceiveFrame()) {
             if (response->GetActionType() == bc::protocol::ActionType::PUSH) {
                 std::cout << "New message from " << alias << ": ";
@@ -160,10 +176,66 @@ auto Repl::HandlePoll() -> void
                     std::cout << static_cast<char>(byte);
                 }
                 std::cout << "\n";
+
+                bc::domain::client::CacheEntry entry{
+                    .id = "inbound_" + std::to_string(std::time(nullptr)),
+                    .timestamp = static_cast<std::uint64_t>(std::time(nullptr)),
+                    .direction = bc::domain::client::MessageDirection::INBOUND,
+                    .alias = alias,
+                    .status = bc::domain::client::MessageStatus::DELIVERED,
+                    .payload = response->GetPayload()};
+
+                cache.AppendMessage(entry);
+                std::cout << "Message cached.\n";
+
+                std::string msgId = bc::core::HashPayload(response->GetPayload());
+
+                bc::protocol::Payload ackPayload(msgId.begin(), msgId.end());
+
+                auto ackFrame =
+                    bc::protocol::Frame::CreateAck(contact->txMailboxId, std::move(ackPayload));
+
+                if (client.SendFrame(std::move(ackFrame))) {
+                    std::cout << "[Background] ACK sent for message ID: " << msgId << ".\n";
+                } else {
+                    std::cout << "[Background] Network error while sending ACK.\n";
+                }
+
+            } else if (response->GetActionType() == bc::protocol::ActionType::ACK) {
+                const auto& payload = response->GetPayload();
+
+                std::string msgId(payload.begin(), payload.end());
+
+                cache.UpdateMessageStatus(alias, msgId,
+                                          bc::domain::client::MessageStatus::DELIVERED);
+                std::cout << "Received ACK for message ID: " << msgId
+                          << ". Status updated to DELIVERED.\n";
+
             } else {
                 std::cout << "Mailbox is empty.\n";
             }
         }
+    }
+}
+auto Repl::HandleHistory() -> void
+{
+    std::string alias;
+    if (!(std::cin >> alias)) {
+        return;
+    }
+
+    auto history = cache.LoadHistory(alias);
+
+    std::cout << "--- History for " << alias << " ---\n";
+    for (const auto& entry : history) {
+        std::cout << "["
+                  << (entry.direction == bc::domain::client::MessageDirection::INBOUND ? "IN"
+                                                                                       : "OUT")
+                  << "] "
+                  << "["
+                  << (entry.status == bc::domain::client::MessageStatus::PENDING_ACK ? "WAIT"
+                                                                                     : "OK")
+                  << "] " << std::string(entry.payload.begin(), entry.payload.end()) << "\n";
     }
 }
 
