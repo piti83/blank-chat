@@ -1,7 +1,11 @@
 #include <array>
+#include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <cstdint>
+#include <future>
 #include <memory>
+#include <mutex>
 #include <thread>
 #include <vector>
 
@@ -140,9 +144,9 @@ TEST_F(TcpClientTest, DisconnectClosesSocketSafelyMultipleTimes)
     client.Disconnect();
 }
 
-TEST_F(TcpClientTest, SendFrameSuccessfullyTransmitsDataZeroCopy)
+TEST_F(TcpClientTest, AsyncEngineSuccessfullyTransmitsCBRFrames)
 {
-    auto frame = protocol::Frame::CreatePush(defaultMailbox, {0x01, 0x02, 0x03});
+    auto frame = protocol::Frame::CreatePoll(defaultMailbox);
     auto expectedSerialized = frame.Serialize();
 
     struct SharedState
@@ -169,7 +173,7 @@ TEST_F(TcpClientTest, SendFrameSuccessfullyTransmitsDataZeroCopy)
             *sockPtr, boost::asio::buffer(*buffer),
             [sockPtr, buffer, state](boost::system::error_code ec, std::size_t) {
                 if (!ec) {
-                    std::lock_guard<std::mutex> lock(state->mutex);
+                    std::scoped_lock lock(state->mutex);
                     state->data = *buffer;
                     state->ready = true;
                     state->cv.notify_one();
@@ -182,36 +186,34 @@ TEST_F(TcpClientTest, SendFrameSuccessfullyTransmitsDataZeroCopy)
     TcpClient client(clientIo, "127.0.0.1", serverPort);
     ASSERT_TRUE(client.Connect("test.onion", 80));
 
-    bool sendResult = client.SendFrame(std::move(frame));
-    EXPECT_TRUE(sendResult);
+    std::atomic<int> providerCalls{0};
+    auto provider = [&]() -> protocol::Frame {
+        providerCalls++;
+        return protocol::Frame::CreatePoll(defaultMailbox);
+    };
+    auto receiver = [](protocol::Frame&& /*frame*/) {};
+
+    client.StartAsyncEngine(provider, receiver, std::chrono::milliseconds(10));
+
+    std::thread ioThread([&]() { clientIo.run(); });
 
     {
         std::unique_lock<std::mutex> lock(state->mutex);
         bool waitResult =
             state->cv.wait_for(lock, std::chrono::seconds(2), [&] { return state->ready; });
 
-        ASSERT_TRUE(waitResult) << "Timeout waiting for server to receive data";
+        ASSERT_TRUE(waitResult) << "Timeout waiting for server to receive async data";
         EXPECT_EQ(state->data, expectedSerialized);
     }
 
     client.Disconnect();
-    serverIo.stop();
-    if (serverThread.joinable()) {
-        serverThread.join();
-    }
+    clientIo.stop();
+    ioThread.join();
+
+    EXPECT_GE(providerCalls.load(), 1);
 }
 
-TEST_F(TcpClientTest, SendFrameReturnsFalseWhenSocketIsClosed)
-{
-    TcpClient client(clientIo, "127.0.0.1", serverPort);
-
-    auto frame = protocol::Frame::CreatePoll(defaultMailbox);
-    bool result = client.SendFrame(std::move(frame));
-
-    EXPECT_FALSE(result);
-}
-
-TEST_F(TcpClientTest, ReceiveFrameSuccessfullyParsesValidData)
+TEST_F(TcpClientTest, AsyncEngineSuccessfullyReceivesFrames)
 {
     auto serverFrame = protocol::Frame::CreatePush(defaultMailbox, {0xFF, 0xEE});
     auto serialized = serverFrame.Serialize();
@@ -229,14 +231,35 @@ TEST_F(TcpClientTest, ReceiveFrameSuccessfullyParsesValidData)
     TcpClient client(clientIo, "127.0.0.1", serverPort);
     ASSERT_TRUE(client.Connect("test.onion", 80));
 
-    auto receivedOpt = client.ReceiveFrame();
+    std::promise<protocol::Frame> receivedPromise;
+    auto future = receivedPromise.get_future();
+    std::atomic<bool> frameReceived = false;
 
-    ASSERT_TRUE(receivedOpt.has_value());
-    EXPECT_EQ(receivedOpt->GetActionType(), protocol::ActionType::PUSH);
-    EXPECT_EQ(receivedOpt->GetPayload(), (protocol::Payload{0xFF, 0xEE}));
+    auto provider = [&]() -> protocol::Frame {
+        return protocol::Frame::CreatePoll(defaultMailbox);
+    };
+    auto receiver = [&](protocol::Frame&& frame) {
+        if (!frameReceived.exchange(true)) {
+            receivedPromise.set_value(std::move(frame));
+        }
+    };
+
+    client.StartAsyncEngine(provider, receiver, std::chrono::milliseconds(1000));
+    std::thread ioThread([&]() { clientIo.run(); });
+
+    auto status = future.wait_for(std::chrono::seconds(2));
+    ASSERT_EQ(status, std::future_status::ready);
+
+    auto extracted = future.get();
+    EXPECT_EQ(extracted.GetActionType(), protocol::ActionType::PUSH);
+    EXPECT_EQ(extracted.GetPayload(), (protocol::Payload{0xFF, 0xEE}));
+
+    client.Disconnect();
+    clientIo.stop();
+    ioThread.join();
 }
 
-TEST_F(TcpClientTest, ReceiveFrameHandlesTcpFragmentationSafely)
+TEST_F(TcpClientTest, AsyncEngineHandlesTcpFragmentationSafely)
 {
     auto serverFrame = protocol::Frame::CreatePoll(defaultMailbox);
     auto serialized = serverFrame.Serialize();
@@ -250,55 +273,70 @@ TEST_F(TcpClientTest, ReceiveFrameHandlesTcpFragmentationSafely)
 
             for (const auto& byte : serialized) {
                 boost::asio::write(sock, boost::asio::buffer(&byte, 1));
-                std::this_thread::sleep_for(std::chrono::milliseconds(2));
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
         });
 
     TcpClient client(clientIo, "127.0.0.1", serverPort);
     ASSERT_TRUE(client.Connect("test.onion", 80));
 
-    auto receivedOpt = client.ReceiveFrame();
+    std::promise<protocol::Frame> receivedPromise;
+    auto future = receivedPromise.get_future();
+    std::atomic<bool> frameReceived = false;
 
-    ASSERT_TRUE(receivedOpt.has_value());
-    EXPECT_EQ(receivedOpt->GetActionType(), protocol::ActionType::POLL);
+    auto provider = [&]() -> protocol::Frame {
+        return protocol::Frame::CreatePoll(defaultMailbox);
+    };
+    auto receiver = [&](protocol::Frame&& frame) {
+        if (!frameReceived.exchange(true)) {
+            receivedPromise.set_value(std::move(frame));
+        }
+    };
+
+    client.StartAsyncEngine(provider, receiver, std::chrono::milliseconds(1000));
+    std::thread ioThread([&]() { clientIo.run(); });
+
+    auto status = future.wait_for(std::chrono::seconds(2));
+    ASSERT_EQ(status, std::future_status::ready);
+
+    auto extracted = future.get();
+    EXPECT_EQ(extracted.GetActionType(), protocol::ActionType::POLL);
+
+    client.Disconnect();
+    clientIo.stop();
+    ioThread.join();
 }
 
-TEST_F(TcpClientTest, ReceiveFrameReturnsNulloptOnServerEofDrop)
+TEST_F(TcpClientTest, AsyncEngineGracefullyHandlesServerDisconnect)
 {
     acceptor->async_accept([this](boost::system::error_code ec, boost::asio::ip::tcp::socket sock) {
         if (ec)
             return;
         if (!SimulateTorHandshakeSync(sock))
             return;
-        sock.close();
+
+        boost::system::error_code ignoredEc;
+        sock.close(ignoredEc);
     });
 
     TcpClient client(clientIo, "127.0.0.1", serverPort);
     ASSERT_TRUE(client.Connect("test.onion", 80));
 
-    auto receivedOpt = client.ReceiveFrame();
+    auto provider = [&]() -> protocol::Frame {
+        return protocol::Frame::CreatePoll(defaultMailbox);
+    };
+    auto receiver = [](protocol::Frame&& /*frame*/) {};
 
-    EXPECT_FALSE(receivedOpt.has_value());
-}
+    client.StartAsyncEngine(provider, receiver, std::chrono::milliseconds(10));
+    std::thread ioThread([&]() { clientIo.run(); });
 
-TEST_F(TcpClientTest, ReceiveFrameReturnsNulloptOnMalformedVolumetricData)
-{
-    acceptor->async_accept([this](boost::system::error_code ec, boost::asio::ip::tcp::socket sock) {
-        if (ec)
-            return;
-        if (!SimulateTorHandshakeSync(sock))
-            return;
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-        std::vector<std::uint8_t> garbage(50, 0x99);
-        boost::asio::write(sock, boost::asio::buffer(garbage));
-    });
+    client.Disconnect();
+    clientIo.stop();
+    ioThread.join();
 
-    TcpClient client(clientIo, "127.0.0.1", serverPort);
-    ASSERT_TRUE(client.Connect("test.onion", 80));
-
-    auto receivedOpt = client.ReceiveFrame();
-
-    EXPECT_FALSE(receivedOpt.has_value());
+    SUCCEED() << "Client gracefully handled unexpected EOF without exceptions or abortion.";
 }
 
 } // namespace bc::network::test

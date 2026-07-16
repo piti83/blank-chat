@@ -1,8 +1,7 @@
-#include "cli/repl.h"
-
 #include <algorithm>
 #include <iostream>
 #include <limits>
+#include <mutex>
 #include <optional>
 
 #include <sodium.h>
@@ -12,6 +11,9 @@
 #include <protocol/action_type.h>
 #include <protocol/frame.h>
 #include <protocol/mailbox_id.h>
+
+#include "cli/repl.h"
+#include "network/tcp_client.h"
 
 namespace {
 
@@ -44,6 +46,14 @@ Repl::Repl(bc::domain::client::AddressBook& addressBook,
 {
 }
 
+Repl::~Repl()
+{
+    ioContext.stop();
+    if (asioThread.joinable()) {
+        asioThread.join();
+    }
+}
+
 auto Repl::Run() -> void
 {
     std::cout << "--- Blank Chat ---\n";
@@ -58,8 +68,6 @@ auto Repl::Run() -> void
             HandleConnect();
         } else if (cmd == "send") {
             HandleSend();
-        } else if (cmd == "poll") {
-            HandlePoll();
         } else if (cmd == "mykey") {
             HandleMyKey();
         } else if (cmd == "add") {
@@ -93,13 +101,20 @@ auto Repl::HandleAddContact() -> void
 
     if (!pubKeyOpt) {
         std::cout << "Error: Invalid BIP39 Mnemonic (Check spelling, dashes, and checksum).\n";
-
         sodium_memzero(mnemonicStr.data(), mnemonicStr.size());
         return;
     }
 
     if (addressBook.AddContact(alias, *pubKeyOpt, std::nullopt)) {
         std::cout << "Contact '" << alias << "' added successfully. Mailboxes mapped.\n";
+
+        {
+            std::scoped_lock lock(outboxMutex);
+            if (std::ranges::find(contactAliases, alias) == contactAliases.end()) {
+                contactAliases.push_back(alias);
+            }
+        }
+
     } else {
         std::cout << "Failed to add contact. Mathematically invalid cryptographic key.\n";
     }
@@ -107,116 +122,125 @@ auto Repl::HandleAddContact() -> void
     sodium_memzero(mnemonicStr.data(), mnemonicStr.size());
 }
 
+auto Repl::GetNextFrameForCBR() -> bc::protocol::Frame
+{
+    std::scoped_lock lock(outboxMutex);
+
+    if (!outbox.empty()) {
+        auto frame = std::move(outbox.front());
+        outbox.pop();
+        return frame;
+    }
+
+    if (contactAliases.empty()) {
+        bc::protocol::MailboxID dummyId;
+        dummyId.Fill(0x00);
+        return bc::protocol::Frame::CreatePoll(dummyId);
+    }
+
+    const std::string& alias = contactAliases.at(currentPollIndex);
+    currentPollIndex = (currentPollIndex + 1) % contactAliases.size();
+
+    const auto* contact = addressBook.GetContact(alias);
+    if (contact != nullptr) {
+        return bc::protocol::Frame::CreatePoll(contact->rxMailboxId);
+    }
+
+    bc::protocol::MailboxID dummyId;
+    dummyId.Fill(0x00);
+    return bc::protocol::Frame::CreatePoll(dummyId);
+}
+
+auto Repl::OnFrameReceived(bc::protocol::Frame&& frame) -> void
+{
+    if (frame.GetActionType() == bc::protocol::ActionType::PUSH) {
+
+        std::string alias = addressBook.GetAliasByRxMailboxId(frame.GetMailboxID());
+        if (alias.empty()) {
+            PrintThreadSafe("Received message for unknown MailboxID.\n");
+            return;
+        }
+
+        bc::protocol::Payload payload = std::move(frame).ExtractPayload();
+
+        PrintThreadSafe("\nNew message from " + alias + ": ");
+        for (auto byte : payload) {
+            PrintThreadSafe(std::string(1, static_cast<char>(byte)));
+        }
+        PrintThreadSafe("\n>>> ");
+
+        const auto* contact = addressBook.GetContact(alias);
+        if (contact != nullptr) {
+            std::string msgId = bc::core::HashPayload(payload);
+            bc::protocol::Payload ackPayload(msgId.begin(), msgId.end());
+            auto ackFrame =
+                bc::protocol::Frame::CreateAck(contact->txMailboxId, std::move(ackPayload));
+
+            std::scoped_lock lock(outboxMutex);
+            outbox.push(std::move(ackFrame));
+            PrintThreadSafe("[Background] ACK queued for transmission.\n>>> ");
+        }
+
+    } else if (frame.GetActionType() == bc::protocol::ActionType::ACK) {
+        PrintThreadSafe("\n[Background] Message DELIVERED.\n>>> ");
+    }
+}
+
+auto Repl::PrintThreadSafe(std::string_view msg) -> void
+{
+    std::scoped_lock lock(stdoutMutex);
+    std::cout << msg << std::flush;
+}
+
 auto Repl::HandleConnect() -> void
 {
-    std::cout << "Connecting to " << relayAddress << ":" << relayPort << " via Tor proxy...\n";
+    std::cout << "Connecting via Tor proxy...\n";
     if (client.Connect(relayAddress, relayPort)) {
-        std::cout << "Successfully connected to the Onion network.\n";
+        std::cout << "Successfully connected.\n";
+
+        contactAliases = addressBook.GetAllAliases();
+
+        client.StartAsyncEngine(
+            [this]() -> bc::protocol::Frame { return GetNextFrameForCBR(); },
+            [this](bc::protocol::Frame&& frame) -> void { OnFrameReceived(std::move(frame)); },
+            std::chrono::milliseconds(bc::network::defaultCbrInterval));
+
+        asioThread = std::thread([this]() -> void {
+            ioContext.restart();
+
+            auto workGuard = boost::asio::make_work_guard(ioContext);
+            ioContext.run();
+        });
+
     } else {
-        std::cout << "Failed to connect (ensure Tor daemon is running).\n";
+        std::cout << "Failed to connect.\n";
     }
 }
 
 auto Repl::HandleSend() -> void
 {
     std::string alias;
-    if (!(std::cin >> alias)) {
+    if (!(std::cin >> alias))
         return;
-    }
 
     auto payload = ReadSecurePayload();
 
     const auto* contact = addressBook.GetContact(alias);
-    if (!static_cast<bool>(contact)) {
+    if (contact == nullptr) {
         std::cout << "Error: Contact '" << alias << "' not found in address book.\n";
         std::ranges::fill(payload, 0);
         return;
     }
 
-    auto payloadCopy = payload;
-    std::string msgId = bc::core::HashPayload(payload);
     auto frame = bc::protocol::Frame::CreatePush(contact->txMailboxId, std::move(payload));
 
-    if (client.SendFrame(std::move(frame))) {
-        bc::domain::client::CacheEntry entry{
-            .id = msgId,
-            .timestamp = static_cast<std::uint64_t>(std::time(nullptr)),
-            .direction = bc::domain::client::MessageDirection::OUTBOUND,
-            .alias = std::string(alias),
-            .status = bc::domain::client::MessageStatus::PENDING_ACK,
-            .payload = payloadCopy};
-        cache.AppendMessage(entry);
-        std::cout << "Message cached as PENDING_ACK (ID: " << msgId << ").\n";
-    } else {
-        std::cout << "Network error during transmission.\n";
+    {
+        std::scoped_lock lock(outboxMutex);
+        outbox.push(std::move(frame));
     }
+    PrintThreadSafe("Message added to Outbox. Will be transmitted on next CBR tick.\n");
 }
 
-auto Repl::HandlePoll() -> void
-{
-    std::string alias;
-    if (!(std::cin >> alias)) {
-        return;
-    }
-    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-
-    const auto* contact = addressBook.GetContact(alias);
-    if (!static_cast<bool>(contact)) {
-        std::cout << "Error: Contact '" << alias << "' not found in address book.\n";
-        return;
-    }
-
-    if (client.SendFrame(bc::protocol::Frame::CreatePoll(contact->rxMailboxId))) {
-        std::cout << "POLL request sent. Waiting for server response...\n";
-
-        if (auto response = client.ReceiveFrame()) {
-            if (response->GetActionType() == bc::protocol::ActionType::PUSH) {
-                std::cout << "New message from " << alias << ": ";
-                for (auto byte : response->GetPayload()) {
-                    std::cout << static_cast<char>(byte);
-                }
-                std::cout << "\n";
-
-                bc::domain::client::CacheEntry entry{
-                    .id = "inbound_" + std::to_string(std::time(nullptr)),
-                    .timestamp = static_cast<std::uint64_t>(std::time(nullptr)),
-                    .direction = bc::domain::client::MessageDirection::INBOUND,
-                    .alias = alias,
-                    .status = bc::domain::client::MessageStatus::DELIVERED,
-                    .payload = response->GetPayload()};
-
-                cache.AppendMessage(entry);
-                std::cout << "Message cached.\n";
-
-                std::string msgId = bc::core::HashPayload(response->GetPayload());
-
-                bc::protocol::Payload ackPayload(msgId.begin(), msgId.end());
-
-                auto ackFrame =
-                    bc::protocol::Frame::CreateAck(contact->txMailboxId, std::move(ackPayload));
-
-                if (client.SendFrame(std::move(ackFrame))) {
-                    std::cout << "[Background] ACK sent for message ID: " << msgId << ".\n";
-                } else {
-                    std::cout << "[Background] Network error while sending ACK.\n";
-                }
-
-            } else if (response->GetActionType() == bc::protocol::ActionType::ACK) {
-                const auto& payload = response->GetPayload();
-
-                std::string msgId(payload.begin(), payload.end());
-
-                cache.UpdateMessageStatus(alias, msgId,
-                                          bc::domain::client::MessageStatus::DELIVERED);
-                std::cout << "Received ACK for message ID: " << msgId
-                          << ". Status updated to DELIVERED.\n";
-
-            } else {
-                std::cout << "Mailbox is empty.\n";
-            }
-        }
-    }
-}
 auto Repl::HandleHistory() -> void
 {
     std::string alias;

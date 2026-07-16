@@ -1,5 +1,3 @@
-#include "client/address_book.h"
-
 #include <unordered_map>
 
 #include <client/contact.h>
@@ -8,6 +6,7 @@
 #include <crypto/mailbox_derivation.h>
 #include <protocol/mailbox_id.h>
 
+#include "client/address_book.h"
 #include "client/raw_contact.h"
 
 namespace bc::domain::client {
@@ -74,6 +73,26 @@ auto AddressBook::GetContact(std::string_view alias) -> const Contact*
         return &it->second;
     }
     return nullptr;
+}
+
+auto AddressBook::GetAllAliases() const -> std::vector<std::string>
+{
+    std::vector<std::string> aliases;
+    aliases.reserve(contacts.size());
+    for (const auto& [alias, contactObj] : contacts) {
+        aliases.push_back(alias);
+    }
+    return aliases;
+}
+
+auto AddressBook::GetAliasByRxMailboxId(const bc::protocol::MailboxID& rxId) const -> std::string
+{
+    for (const auto& [alias, contactObj] : contacts) {
+        if (contactObj.rxMailboxId == rxId) {
+            return alias;
+        }
+    }
+    return "";
 }
 
 } // namespace bc::domain::client

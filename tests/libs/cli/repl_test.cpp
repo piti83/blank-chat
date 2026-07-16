@@ -118,7 +118,7 @@ TEST_F(ReplTest, HandlesEmptyPayloadSecurely)
                                                                             << test_out.str();
 
     EXPECT_NE(test_out.str().find("Successfully connected"), std::string::npos);
-    EXPECT_NE(test_out.str().find("Message cached as PENDING_ACK"), std::string::npos)
+    EXPECT_NE(test_out.str().find("Message added to Outbox"), std::string::npos)
         << "Actual Output: \n"
         << test_out.str();
 }
@@ -153,12 +153,25 @@ TEST_F(ReplTest, SendToUnknownContactFailsSecurely)
     EXPECT_NE(test_out.str().find("not found in address book"), std::string::npos);
 }
 
-TEST_F(ReplTest, PollUnknownContactFailsSecurely)
+TEST_F(ReplTest, SocketDisconnectDoesNotCrashOrThrow)
 {
+    acceptor->async_accept([this](auto ec, auto sock) {
+        if (!ec) {
+            MockTorHandshake(sock);
+            boost::system::error_code dropEc;
+            sock.close(dropEc);
+        }
+    });
+
     Repl repl(testAddressBook, testCache, *testIdentity, "127.0.0.1", serverPort, "test.onion", 80);
-    test_in << "poll ghost\nexit\n";
+
+    test_in << "connect\n";
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    test_in << "exit\n";
+
     repl.Run();
-    EXPECT_NE(test_out.str().find("not found in address book"), std::string::npos);
+
+    SUCCEED() << "CLI safely digested an underlying connection drop in background.";
 }
 
 } // namespace bc::cli::test

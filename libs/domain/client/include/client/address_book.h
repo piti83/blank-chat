@@ -28,6 +28,11 @@ public:
                     std::optional<std::string> note) -> bool;
     auto GetContact(std::string_view alias) -> const Contact*;
 
+    [[nodiscard]] auto GetAllAliases() const -> std::vector<std::string>;
+
+    [[nodiscard]] auto GetAliasByRxMailboxId(const bc::protocol::MailboxID& rxId) const
+        -> std::string;
+
 private:
     std::unordered_map<std::string, Contact, bc::core::StringHash, std::equal_to<>> contacts;
     std::filesystem::path contactsFilePath;
