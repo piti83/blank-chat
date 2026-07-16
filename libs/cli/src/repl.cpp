@@ -1,3 +1,5 @@
+#include "cli/repl.h"
+
 #include <algorithm>
 #include <iostream>
 #include <limits>
@@ -12,7 +14,6 @@
 #include <protocol/frame.h>
 #include <protocol/mailbox_id.h>
 
-#include "cli/repl.h"
 #include "network/tcp_client.h"
 
 namespace {
