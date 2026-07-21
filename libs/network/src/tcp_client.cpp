@@ -6,6 +6,8 @@
 #include <utility>
 #include <vector>
 
+#include <sodium.h>
+
 #include <core/logger.h>
 
 namespace bc::network {
@@ -120,7 +122,8 @@ namespace detail {
 
 TcpClient::TcpClient(boost::asio::io_context& ioContext, std::string_view torHost,
                      std::uint16_t torPort)
-    : socket(ioContext), torHost(torHost), torPort(torPort)
+    : socket(ioContext), torHost(torHost), torPort(torPort), cbrTimer(ioContext),
+      readBuffer(readBufferSize)
 {
 }
 
@@ -169,54 +172,92 @@ auto TcpClient::Disconnect() noexcept -> void
     }
 }
 
-auto TcpClient::SendFrame(bc::protocol::Frame&& frame) -> bool
+auto TcpClient::StartAsyncEngine(FrameProvider provider, FrameReceiver receiver,
+                                 std::chrono::milliseconds interval) -> void
 {
-    bc::protocol::Frame localFrame = std::move(frame);
+    frameProvider = std::move(provider);
+    frameReceiver = std::move(receiver);
+    cbrInterval = interval;
 
-    auto serialized = localFrame.Serialize();
-    boost::system::error_code errorCode;
+    DoRead();
 
-    boost::asio::write(socket, boost::asio::buffer(serialized), errorCode);
-
-    if (errorCode) {
-        BC_WARN("Failed to send frame: {}", errorCode.message());
-        return false;
-    }
-
-    BC_TRACE("Frame sent successfully (Size: {} bytes)", serialized.size());
-    return true;
+    cbrTimer.expires_after(cbrInterval);
+    cbrTimer.async_wait([this](boost::system::error_code ec) -> void {
+        if (!ec)
+            DoCbrTick();
+    });
 }
 
-auto TcpClient::ReceiveFrame() -> std::optional<bc::protocol::Frame>
+auto TcpClient::DoCbrTick() -> void
 {
-    static constexpr std::size_t bufferSize = 4096;
-    std::vector<std::uint8_t> buffer(bufferSize);
-    boost::system::error_code errorCode;
+    cbrTimer.expires_at(cbrTimer.expiry() + cbrInterval);
+    cbrTimer.async_wait([this](boost::system::error_code ec) -> void {
+        if (!ec)
+            DoCbrTick();
+    });
 
-    while (true) {
-        std::size_t bytesRead = socket.read_some(boost::asio::buffer(buffer), errorCode);
+    auto frame = frameProvider();
+    writeQueue.push(frame.Serialize());
 
-        if (errorCode == boost::asio::error::eof) {
-            BC_WARN("Server closed connection (EOF).");
-            return std::nullopt;
-        }
+    DoWrite();
+}
 
-        if (errorCode) {
-            BC_WARN("Network read error: {}", errorCode.message());
-            return std::nullopt;
-        }
-
-        parser.FeedBytes(std::span<const std::uint8_t>(buffer.data(), bytesRead));
-
-        if (parser.HasError()) {
-            BC_ERROR("Frame parser error. Data stream might be corrupted or malformed.");
-            return std::nullopt;
-        }
-
-        if (auto frameOpt = parser.TryExtractFrame()) {
-            return frameOpt;
-        }
+auto TcpClient::DoWrite() -> void
+{
+    if (writeInProgress || writeQueue.empty()) {
+        return;
     }
+
+    writeInProgress = true;
+
+    boost::asio::async_write(socket, boost::asio::buffer(writeQueue.front()),
+                             [this](boost::system::error_code ec, std::size_t /*length*/) -> void {
+                                 writeInProgress = false;
+
+                                 auto& buffer = writeQueue.front();
+                                 sodium_memzero(buffer.data(), buffer.size());
+                                 writeQueue.pop();
+
+                                 if (ec) {
+                                     BC_WARN("Network write error: {}. Socket might be dead.",
+                                             ec.message());
+                                     return;
+                                 }
+
+                                 DoWrite();
+                             });
+}
+
+auto TcpClient::DoRead() -> void
+{
+    socket.async_read_some(
+        boost::asio::buffer(readBuffer),
+        [this](boost::system::error_code ec, std::size_t bytesTransferred) -> void {
+            if (ec) {
+                if (ec != boost::asio::error::operation_aborted) {
+                    BC_WARN("Network read error: {}", ec.message());
+                }
+                return;
+            }
+
+            parser.FeedBytes(std::span<const std::uint8_t>(readBuffer.data(), bytesTransferred));
+
+            if (parser.HasError()) {
+                BC_ERROR("Parser error in TcpClient. Dropping connection.");
+                Disconnect();
+                return;
+            }
+
+            while (auto frameOpt = parser.TryExtractFrame()) {
+                if (frameReceiver) {
+                    frameReceiver(std::move(*frameOpt));
+                }
+            }
+
+            if (socket.is_open()) {
+                DoRead();
+            }
+        });
 }
 
 } // namespace bc::network

@@ -1,7 +1,11 @@
 #ifndef BC_LIBS_CLI_INCLUDE_REPL_H_
 #define BC_LIBS_CLI_INCLUDE_REPL_H_
 
+#include <mutex>
+#include <queue>
 #include <string_view>
+#include <thread>
+#include <vector>
 
 #include <boost/asio.hpp>
 
@@ -20,7 +24,7 @@ public:
                   const bc::crypto::IdentityKey& identity, std::string_view torHost,
                   std::uint16_t torPort, std::string relayAddress, std::uint16_t relayPort);
 
-    ~Repl() = default;
+    ~Repl();
 
     Repl(const Repl&) = delete;
     auto operator=(const Repl&) -> Repl& = delete;
@@ -32,11 +36,24 @@ public:
 private:
     auto HandleConnect() -> void;
     auto HandleSend() -> void;
-    auto HandlePoll() -> void;
     auto HandleHistory() -> void;
 
     auto HandleMyKey() -> void;
     auto HandleAddContact() -> void;
+
+    auto GetNextFrameForCBR() -> bc::protocol::Frame;
+    auto OnFrameReceived(bc::protocol::Frame&& frame) -> void;
+    auto PrintThreadSafe(std::string_view msg) -> void;
+
+    std::thread asioThread;
+
+    std::mutex outboxMutex;
+    std::queue<bc::protocol::Frame> outbox;
+
+    std::mutex stdoutMutex;
+
+    std::vector<std::string> contactAliases;
+    std::size_t currentPollIndex{0};
 
     boost::asio::io_context ioContext;
     bc::network::TcpClient client;

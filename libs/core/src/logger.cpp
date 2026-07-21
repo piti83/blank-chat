@@ -10,10 +10,10 @@ namespace bc::core {
 
 auto Logger::Init() -> void
 {
-    auto consoleSink = std::make_shared<spdlog::sinks::stdout_color_sink_st>();
+    auto consoleSink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
     consoleSink->set_level(spdlog::level::trace);
 
-    auto fileSink = std::make_shared<spdlog::sinks::basic_file_sink_st>("logs/bc_log.txt", true);
+    auto fileSink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("logs/bc_log.txt", true);
     fileSink->set_level(spdlog::level::trace);
 
     std::vector<spdlog::sink_ptr> sinks{consoleSink, fileSink};

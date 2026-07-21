@@ -4,6 +4,7 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <queue>
 
 #include <boost/asio.hpp>
 
@@ -32,6 +33,8 @@ public:
 private:
     auto DoRead() -> void;
     auto DoWrite(bc::protocol::RawFrame frameData) -> void;
+    auto ProcessWriteQueue() -> void;
+
     auto ProcessExtractedFrame() -> void;
 
     static constexpr std::size_t bufferSize = 8192;
@@ -41,6 +44,9 @@ private:
     bc::protocol::IFrameHandler& handler;
     protocol::FrameParser parser;
     BufferType readBuffer{};
+
+    std::queue<bc::protocol::RawFrame> writeQueue;
+    bool writeInProgress{false};
 };
 
 } // namespace bc::network

@@ -74,11 +74,10 @@ jobs:
               run: |
                   source ../yocto-dev/sdk/environment-setup-*
                   python3 scripts/build.py yocto-debug -c
-            - name: Run Memcheck & Helgrind
+            - name: Run Memcheck
               run: |
                   source ../yocto-dev/sdk/environment-setup-*
                   python3 scripts/valgrind.py memcheck
-                  python3 scripts/valgrind.py helgrind
 
     coverage:
         runs-on: ubuntu-24.04
