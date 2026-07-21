@@ -197,18 +197,34 @@ auto TcpClient::DoCbrTick() -> void
     });
 
     auto frame = frameProvider();
+    writeQueue.push(frame.Serialize());
 
-    cbrWriteBuffer = frame.Serialize();
+    DoWrite();
+}
 
-    boost::asio::async_write(socket, boost::asio::buffer(cbrWriteBuffer),
+auto TcpClient::DoWrite() -> void
+{
+    if (writeInProgress || writeQueue.empty()) {
+        return;
+    }
+
+    writeInProgress = true;
+
+    boost::asio::async_write(socket, boost::asio::buffer(writeQueue.front()),
                              [this](boost::system::error_code ec, std::size_t /*length*/) -> void {
-                                 sodium_memzero(cbrWriteBuffer.data(), cbrWriteBuffer.size());
-                                 cbrWriteBuffer.clear();
+                                 writeInProgress = false;
+
+                                 auto& buffer = writeQueue.front();
+                                 sodium_memzero(buffer.data(), buffer.size());
+                                 writeQueue.pop();
 
                                  if (ec) {
-                                     BC_WARN("CBR Write Error: {}. Socket might be dead.",
+                                     BC_WARN("Network write error: {}. Socket might be dead.",
                                              ec.message());
+                                     return;
                                  }
+
+                                 DoWrite();
                              });
 }
 

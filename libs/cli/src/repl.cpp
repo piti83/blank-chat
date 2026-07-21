@@ -198,7 +198,6 @@ auto Repl::HandleConnect() -> void
     std::cout << "Connecting via Tor proxy...\n";
     if (client.Connect(relayAddress, relayPort)) {
         std::cout << "Successfully connected.\n";
-
         contactAliases = addressBook.GetAllAliases();
 
         client.StartAsyncEngine(
@@ -206,13 +205,12 @@ auto Repl::HandleConnect() -> void
             [this](bc::protocol::Frame&& frame) -> void { OnFrameReceived(std::move(frame)); },
             std::chrono::milliseconds(bc::network::defaultCbrInterval));
 
-        asioThread = std::thread([this]() -> void {
-            ioContext.restart();
+        ioContext.restart();
 
+        asioThread = std::thread([this]() -> void {
             auto workGuard = boost::asio::make_work_guard(ioContext);
             ioContext.run();
         });
-
     } else {
         std::cout << "Failed to connect.\n";
     }

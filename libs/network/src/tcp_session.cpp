@@ -4,6 +4,7 @@
 #include <utility>
 
 #include <boost/asio.hpp>
+#include <sodium.h>
 
 #include <core/logger.h>
 #include <protocol/action_type.h>
@@ -79,20 +80,39 @@ auto TcpSession::ProcessExtractedFrame() -> void
 
 auto TcpSession::DoWrite(bc::protocol::RawFrame frameData) -> void
 {
-    auto bufferPtr = std::make_shared<bc::protocol::RawFrame>(std::move(frameData));
+    writeQueue.push(std::move(frameData));
+    ProcessWriteQueue();
+}
 
+auto TcpSession::ProcessWriteQueue() -> void
+{
+    if (writeInProgress || writeQueue.empty()) {
+        return;
+    }
+
+    writeInProgress = true;
     auto self(shared_from_this());
 
-    boost::asio::async_write(
-        socket, boost::asio::buffer(*bufferPtr),
-        [this, self, bufferPtr](ErrorCode errorCode, std::size_t /*length*/) -> void {
-            if (errorCode) {
-                BC_WARN("Error writing to socket. Dropping connection.");
-                ErrorCode ignoredEc;
-                // NOLINTNEXTLINE(cert-err33-c, bugprone-unused-return-value)
-                socket.close(ignoredEc);
-            }
-        });
+    boost::asio::async_write(socket, boost::asio::buffer(writeQueue.front()),
+                             [this, self](ErrorCode errorCode, std::size_t /*length*/) -> void {
+                                 writeInProgress = false;
+
+                                 auto& buffer = writeQueue.front();
+                                 sodium_memzero(buffer.data(), buffer.size());
+                                 writeQueue.pop();
+
+                                 if (errorCode) {
+                                     BC_WARN("Error writing to socket. Dropping connection.");
+                                     ErrorCode ignoredEc;
+                                     auto er = socket.close(ignoredEc);
+                                     if (er) {
+                                         BC_WARN("Error closing socket: {}", er.what());
+                                     }
+                                     return;
+                                 }
+
+                                 ProcessWriteQueue();
+                             });
 }
 
 } // namespace bc::network

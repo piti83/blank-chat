@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <queue>
 #include <string>
 
 #include <boost/asio.hpp>
@@ -45,6 +46,7 @@ public:
 private:
     auto DoCbrTick() -> void;
     auto DoRead() -> void;
+    auto DoWrite() -> void;
 
     Socket socket;
     bc::protocol::FrameParser parser;
@@ -57,7 +59,8 @@ private:
     FrameProvider frameProvider;
     FrameReceiver frameReceiver;
 
-    bc::protocol::RawFrame cbrWriteBuffer;
+    std::queue<bc::protocol::RawFrame> writeQueue;
+    bool writeInProgress{false};
 
     static constexpr std::size_t readBufferSize = 4096;
     std::vector<std::uint8_t> readBuffer;
