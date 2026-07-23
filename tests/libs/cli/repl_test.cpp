@@ -174,4 +174,30 @@ TEST_F(ReplTest, SocketDisconnectDoesNotCrashOrThrow)
     SUCCEED() << "CLI safely digested an underlying connection drop in background.";
 }
 
+TEST_F(ReplTest, ReplWritesToHistoryOnSend)
+{
+
+    Repl repl(testAddressBook, testCache, *testIdentity, "127.0.0.1", serverPort, "test.onion", 80);
+
+    auto mockContact = bc::crypto::IdentityKey::Generate();
+    auto mnemonic = bc::crypto::bip39::Encode(mockContact.GetPublicKey());
+
+    test_in << "add charlie " << mnemonic.StringView() << "\n";
+    test_in << "send charlie Target Acquired\n";
+    test_in << "exit\n";
+
+    repl.Run();
+
+    auto history = testCache.LoadHistory("charlie");
+    ASSERT_EQ(history.size(), 1) << "Cache entry was not created by Repl::HandleSend";
+
+    EXPECT_EQ(history[0].direction, bc::domain::client::MessageDirection::OUTBOUND);
+    EXPECT_EQ(history[0].status, bc::domain::client::MessageStatus::PENDING_ACK);
+    EXPECT_EQ(history[0].alias, "charlie");
+
+    bc::protocol::Payload expectedPayload{'T', 'a', 'r', 'g', 'e', 't', ' ', 'A',
+                                          'c', 'q', 'u', 'i', 'r', 'e', 'd'};
+    EXPECT_EQ(history[0].payload, expectedPayload);
+}
+
 } // namespace bc::cli::test

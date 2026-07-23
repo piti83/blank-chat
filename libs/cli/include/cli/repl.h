@@ -37,6 +37,7 @@ private:
     auto HandleConnect() -> void;
     auto HandleSend() -> void;
     auto HandleHistory() -> void;
+    auto HandleList() -> void;
 
     auto HandleMyKey() -> void;
     auto HandleAddContact() -> void;

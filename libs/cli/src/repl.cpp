@@ -75,6 +75,8 @@ auto Repl::Run() -> void
             HandleAddContact();
         } else if (cmd == "history") {
             HandleHistory();
+        } else if (cmd == "list") {
+            HandleList();
         } else {
             std::cout << "Unknown command.\n";
             std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
@@ -164,6 +166,15 @@ auto Repl::OnFrameReceived(bc::protocol::Frame&& frame) -> void
 
         bc::protocol::Payload payload = std::move(frame).ExtractPayload();
 
+        bc::domain::client::CacheEntry entry{
+            .id = bc::core::HashPayload(payload),
+            .timestamp = static_cast<std::uint64_t>(std::time(nullptr)),
+            .direction = bc::domain::client::MessageDirection::INBOUND,
+            .alias = alias,
+            .status = bc::domain::client::MessageStatus::DELIVERED,
+            .payload = payload};
+        cache.AppendMessage(entry);
+
         PrintThreadSafe("\nNew message from " + alias + ": ");
         for (auto byte : payload) {
             PrintThreadSafe(std::string(1, static_cast<char>(byte)));
@@ -183,6 +194,15 @@ auto Repl::OnFrameReceived(bc::protocol::Frame&& frame) -> void
         }
 
     } else if (frame.GetActionType() == bc::protocol::ActionType::ACK) {
+
+        std::string alias = addressBook.GetAliasByRxMailboxId(frame.GetMailboxID());
+        bc::protocol::Payload ackPayload = std::move(frame).ExtractPayload();
+        std::string msgId(ackPayload.begin(), ackPayload.end());
+
+        if (!alias.empty()) {
+            cache.UpdateMessageStatus(alias, msgId, bc::domain::client::MessageStatus::DELIVERED);
+        }
+
         PrintThreadSafe("\n[Background] Message DELIVERED.\n>>> ");
     }
 }
@@ -231,6 +251,16 @@ auto Repl::HandleSend() -> void
         return;
     }
 
+    std::string msgId = bc::core::HashPayload(payload);
+    bc::domain::client::CacheEntry entry{
+        .id = msgId,
+        .timestamp = static_cast<std::uint64_t>(std::time(nullptr)),
+        .direction = bc::domain::client::MessageDirection::OUTBOUND,
+        .alias = alias,
+        .status = bc::domain::client::MessageStatus::PENDING_ACK,
+        .payload = payload};
+    cache.AppendMessage(entry);
+
     auto frame = bc::protocol::Frame::CreatePush(contact->txMailboxId, std::move(payload));
 
     {
@@ -259,6 +289,20 @@ auto Repl::HandleHistory() -> void
                   << (entry.status == bc::domain::client::MessageStatus::PENDING_ACK ? "WAIT"
                                                                                      : "OK")
                   << "] " << std::string(entry.payload.begin(), entry.payload.end()) << "\n";
+    }
+}
+
+auto Repl::HandleList() -> void
+{
+    auto aliases = addressBook.GetAllAliases();
+    if (aliases.empty()) {
+        std::cout << "Address book is empty.\n";
+        return;
+    }
+
+    std::cout << "--- Contacts ---\n";
+    for (const auto& a : aliases) {
+        std::cout << "- " << a << "\n";
     }
 }
 
