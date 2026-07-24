@@ -24,7 +24,7 @@ public:
     auto Initialize(const std::filesystem::path& pathToContactsFile,
                     const bc::crypto::IdentityKey& myIdentity) -> void;
 
-    auto AddContact(std::string alias, const PublicKeyType& publicKey,
+    auto AddContact(const std::string& alias, const PublicKeyType& publicKey,
                     std::optional<std::string> note) -> bool;
     auto GetContact(std::string_view alias) -> const Contact*;
 

@@ -8,8 +8,10 @@
 
 #include <sodium.h>
 
+#include <core/logger.h>
 #include <core/string_utils.h>
 #include <crypto/bip39.h>
+#include <crypto/symmetric_cipher.h>
 #include <protocol/action_type.h>
 #include <protocol/frame.h>
 #include <protocol/mailbox_id.h>
@@ -164,46 +166,83 @@ auto Repl::OnFrameReceived(bc::protocol::Frame&& frame) -> void
             return;
         }
 
-        bc::protocol::Payload payload = std::move(frame).ExtractPayload();
+        const auto* contact = addressBook.GetContact(alias);
+        if (contact == nullptr) {
+            return;
+        }
+
+        bc::protocol::Payload ciphertext = std::move(frame).ExtractPayload();
+
+        auto plaintextOpt =
+            bc::crypto::SymmetricCipher::DecryptAndUnpad(contact->rxKey.AsSpan(), ciphertext);
+
+        if (!plaintextOpt) {
+            PrintThreadSafe("\nMalformed or tampered PUSH message dropped silently.\n>>> ");
+            return;
+        }
+
+        bc::protocol::Payload plaintext = std::move(*plaintextOpt);
+        std::string msgId = bc::core::HashPayload(plaintext);
 
         bc::domain::client::CacheEntry entry{
-            .id = bc::core::HashPayload(payload),
+            .id = msgId,
             .timestamp = static_cast<std::uint64_t>(std::time(nullptr)),
             .direction = bc::domain::client::MessageDirection::INBOUND,
             .alias = alias,
             .status = bc::domain::client::MessageStatus::DELIVERED,
-            .payload = payload};
+            .payload = plaintext};
         cache.AppendMessage(entry);
 
         PrintThreadSafe("\nNew message from " + alias + ": ");
-        for (auto byte : payload) {
+        for (auto byte : plaintext) {
             PrintThreadSafe(std::string(1, static_cast<char>(byte)));
         }
         PrintThreadSafe("\n>>> ");
 
-        const auto* contact = addressBook.GetContact(alias);
-        if (contact != nullptr) {
-            std::string msgId = bc::core::HashPayload(payload);
-            bc::protocol::Payload ackPayload(msgId.begin(), msgId.end());
-            auto ackFrame =
-                bc::protocol::Frame::CreateAck(contact->txMailboxId, std::move(ackPayload));
+        bc::protocol::Payload ackPlaintext(msgId.begin(), msgId.end());
 
+        auto ackCiphertextOpt =
+            bc::crypto::SymmetricCipher::EncryptWithPadding(contact->txKey.AsSpan(), ackPlaintext);
+
+        sodium_memzero(plaintext.data(), plaintext.size());
+        sodium_memzero(ackPlaintext.data(), ackPlaintext.size());
+
+        if (ackCiphertextOpt) {
+            auto ackFrame =
+                bc::protocol::Frame::CreateAck(contact->txMailboxId, std::move(*ackCiphertextOpt));
             std::scoped_lock lock(outboxMutex);
             outbox.push(std::move(ackFrame));
-            PrintThreadSafe("[Background] ACK queued for transmission.\n>>> ");
+            PrintThreadSafe("Encrypted ACK queued for transmission.\n>>> ");
         }
 
     } else if (frame.GetActionType() == bc::protocol::ActionType::ACK) {
 
         std::string alias = addressBook.GetAliasByRxMailboxId(frame.GetMailboxID());
-        bc::protocol::Payload ackPayload = std::move(frame).ExtractPayload();
-        std::string msgId(ackPayload.begin(), ackPayload.end());
-
-        if (!alias.empty()) {
-            cache.UpdateMessageStatus(alias, msgId, bc::domain::client::MessageStatus::DELIVERED);
+        if (alias.empty()) {
+            return;
         }
 
-        PrintThreadSafe("\n[Background] Message DELIVERED.\n>>> ");
+        const auto* contact = addressBook.GetContact(alias);
+        if (contact == nullptr) {
+            return;
+        }
+
+        bc::protocol::Payload ackCiphertext = std::move(frame).ExtractPayload();
+
+        auto ackPlaintextOpt =
+            bc::crypto::SymmetricCipher::DecryptAndUnpad(contact->rxKey.AsSpan(), ackCiphertext);
+
+        if (!ackPlaintextOpt) {
+            PrintThreadSafe("\nMalformed or tampered ACK message dropped silently.\n>>> ");
+            return;
+        }
+
+        std::string msgId(ackPlaintextOpt->begin(), ackPlaintextOpt->end());
+        sodium_memzero(ackPlaintextOpt->data(), ackPlaintextOpt->size());
+
+        cache.UpdateMessageStatus(alias, msgId, bc::domain::client::MessageStatus::DELIVERED);
+
+        PrintThreadSafe("\nMessage DELIVERED 🔒\n>>> ");
     }
 }
 
@@ -247,11 +286,12 @@ auto Repl::HandleSend() -> void
     const auto* contact = addressBook.GetContact(alias);
     if (contact == nullptr) {
         std::cout << "Error: Contact '" << alias << "' not found in address book.\n";
-        std::ranges::fill(payload, 0);
+        sodium_memzero(payload.data(), payload.size());
         return;
     }
 
     std::string msgId = bc::core::HashPayload(payload);
+
     bc::domain::client::CacheEntry entry{
         .id = msgId,
         .timestamp = static_cast<std::uint64_t>(std::time(nullptr)),
@@ -261,13 +301,23 @@ auto Repl::HandleSend() -> void
         .payload = payload};
     cache.AppendMessage(entry);
 
-    auto frame = bc::protocol::Frame::CreatePush(contact->txMailboxId, std::move(payload));
+    auto ciphertextOpt =
+        bc::crypto::SymmetricCipher::EncryptWithPadding(contact->txKey.AsSpan(), payload);
+
+    sodium_memzero(payload.data(), payload.size());
+
+    if (!ciphertextOpt) {
+        std::cout << "Encryption failed for contact '" << alias << "'. Message dropped.\n";
+        return;
+    }
+
+    auto frame = bc::protocol::Frame::CreatePush(contact->txMailboxId, std::move(*ciphertextOpt));
 
     {
         std::scoped_lock lock(outboxMutex);
         outbox.push(std::move(frame));
     }
-    PrintThreadSafe("Message added to Outbox. Will be transmitted on next CBR tick.\n");
+    PrintThreadSafe("Message added to Outbox 🔒 Will be transmitted on next CBR tick.\n");
 }
 
 auto Repl::HandleHistory() -> void

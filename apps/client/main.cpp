@@ -1,4 +1,5 @@
 #include <iostream>
+#include <optional>
 
 #include <sodium.h>
 
@@ -10,28 +11,8 @@
 
 #include <cli/repl.h>
 
-auto main() -> int
+auto InitializeIdentity() -> std::optional<bc::crypto::IdentityKey>
 {
-    if (sodium_init() < 0) {
-        return 1;
-    }
-    bc::core::Logger::Init();
-
-    bc::domain::client::ClientConfig config;
-    std::filesystem::path configPath = "/etc/blank-chat/client_config.toml";
-    if (auto hasVal = bc::domain::client::LoadConfig(configPath)) {
-        config = *hasVal;
-    } else {
-        BC_ERROR("Failed to parse client config file: {}", configPath.string());
-        BC_INFO("Falling back to default configuration.");
-    }
-
-    if (config.relayConfig.onionAddress == "CHANGE_ME.onion") {
-        BC_CRITICAL("You must configure the server's .onion address before starting!");
-        BC_INFO("Please edit: {}", configPath.string());
-        return 1;
-    }
-
     std::filesystem::path identityPath = "/etc/blank-chat/identity.json";
     std::optional<bc::crypto::IdentityKey> myIdentityOpt =
         bc::domain::client::LoadIdentity(identityPath);
@@ -47,27 +28,66 @@ auto main() -> int
 
         if (answer != 'y' && answer != 'Y') {
             std::cout << "Exiting...\n";
-            return 1;
+            return std::nullopt;
         }
 
         myIdentityOpt = bc::crypto::IdentityKey::Generate();
         if (!bc::domain::client::SaveIdentity(identityPath, *myIdentityOpt)) {
             BC_CRITICAL("Failed to save the new identity to disk. Check permissions.");
-            return 1;
+            return std::nullopt;
         }
         std::cout << "[+] New identity generated and saved successfully.\n";
         BC_INFO("Successfully generated new static IdentityKey.");
     }
+    return myIdentityOpt;
+}
+
+auto InitializeConfigs() -> std::optional<bc::domain::client::ClientConfig>
+{
+    bc::domain::client::ClientConfig config;
+    std::filesystem::path configPath = "/etc/blank-chat/client_config.toml";
+    if (auto hasVal = bc::domain::client::LoadConfig(configPath)) {
+        config = *hasVal;
+    } else {
+        BC_ERROR("Failed to parse client config file: {}", configPath.string());
+        BC_INFO("Falling back to default configuration.");
+    }
+
+    if (config.relayConfig.onionAddress == "CHANGE_ME.onion") {
+        BC_CRITICAL("You must configure the server's .onion address before starting!");
+        BC_INFO("Please edit: {}", configPath.string());
+        return std::nullopt;
+    }
+
+    return config;
+}
+
+auto main() -> int
+{
+    if (sodium_init() < 0) {
+        return 1;
+    }
+    bc::core::Logger::Init();
+
+    std::optional<bc::domain::client::ClientConfig> config = InitializeConfigs();
+    if (!config) {
+        return 1;
+    }
+
+    std::optional<bc::crypto::IdentityKey> identity = InitializeIdentity();
+    if (!identity) {
+        return 1;
+    };
 
     bc::domain::client::AddressBook addressBook;
-    addressBook.Initialize(config.storageConfig.contactsFilePath, *myIdentityOpt);
+    addressBook.Initialize(config->storageConfig.contactsFilePath, *identity);
 
     bc::domain::client::ConversationCache cache;
     cache.Initialize("msg_history");
 
-    bc::cli::Repl repl(addressBook, cache, *myIdentityOpt, config.networkConfig.torSocksHost,
-                       config.networkConfig.torSocksPort, config.relayConfig.onionAddress,
-                       config.relayConfig.onionPort);
+    bc::cli::Repl repl(addressBook, cache, *identity, config->networkConfig.torSocksHost,
+                       config->networkConfig.torSocksPort, config->relayConfig.onionAddress,
+                       config->relayConfig.onionPort);
     repl.Run();
 
     return 0;

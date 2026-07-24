@@ -40,7 +40,7 @@ auto AddressBook::Initialize(const std::filesystem::path& pathToContactsFile,
     BC_INFO("Address book initialized!");
 }
 
-auto AddressBook::AddContact(std::string alias, const PublicKeyType& publicKey,
+auto AddressBook::AddContact(const std::string& alias, const PublicKeyType& publicKey,
                              std::optional<std::string> note) -> bool
 {
     if (!static_cast<bool>(identity)) {
