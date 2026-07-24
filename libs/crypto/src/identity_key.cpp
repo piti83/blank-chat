@@ -19,6 +19,14 @@ auto IdentityKey::Generate() -> IdentityKey
     return {pk, std::move(sk)};
 }
 
+auto IdentityKey::Restore(PublicKeyType pk, bc::core::SecureBuffer sk) -> std::optional<IdentityKey>
+{
+    if (sk.Size() != crypto_sign_SECRETKEYBYTES) {
+        return std::nullopt;
+    }
+    return IdentityKey{pk, std::move(sk)};
+}
+
 auto IdentityKey::GetPublicKey() const noexcept -> const PublicKeyType&
 {
     return publicKey;

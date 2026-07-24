@@ -5,6 +5,7 @@
 #include <string>
 
 #include <client/public_key.h>
+#include <core/secure_buffer.h>
 #include <protocol/mailbox_id.h>
 
 namespace bc::domain::client {
@@ -16,6 +17,8 @@ struct Contact
     std::optional<std::string> note = std::nullopt;
     bc::protocol::MailboxID rxMailboxId;
     bc::protocol::MailboxID txMailboxId;
+    bc::core::SecureBuffer rxKey;
+    bc::core::SecureBuffer txKey;
 };
 
 } // namespace bc::domain::client

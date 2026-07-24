@@ -17,6 +17,8 @@ class IdentityKey
 {
 public:
     static auto Generate() -> IdentityKey;
+    [[nodiscard]] static auto Restore(PublicKeyType pk, bc::core::SecureBuffer sk)
+        -> std::optional<IdentityKey>;
 
     IdentityKey(const IdentityKey&) = delete;
     auto operator=(const IdentityKey&) = delete;

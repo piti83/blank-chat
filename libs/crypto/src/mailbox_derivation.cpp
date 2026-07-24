@@ -1,5 +1,7 @@
 #include "crypto/mailbox_derivation.h"
 
+#include <algorithm>
+
 #include <sodium.h>
 
 #include <core/secure_buffer.h>
@@ -29,21 +31,34 @@ auto DerivePairwiseMailboxes(const IdentityKey& ourIdentity,
         return std::nullopt;
     }
 
-    DerivedMailboxes result{};
+    DerivedMailboxes result{.txId = {},
+                            .txKey = bc::core::SecureBuffer(symmetricKeySize),
+                            .rxId = {},
+                            .rxKey = bc::core::SecureBuffer(symmetricKeySize)};
 
+    bc::core::SecureBuffer txExtendedHash(extendedHashSize);
     crypto_generichash_state stateTx;
-    crypto_generichash_init(&stateTx, nullptr, 0, expectedMailboxSize);
+    crypto_generichash_init(&stateTx, nullptr, 0, extendedHashSize);
     crypto_generichash_update(&stateTx, sharedSecret.AsSpan().data(), sharedSecret.Size());
     crypto_generichash_update(&stateTx, ourX25519PkOpt->data(), ourX25519PkOpt->size());
     crypto_generichash_update(&stateTx, theirX25519Pk.data(), theirX25519Pk.size());
-    crypto_generichash_final(&stateTx, result.txId.data(), expectedMailboxSize);
+    crypto_generichash_final(&stateTx, txExtendedHash.AsMutableSpan().data(), extendedHashSize);
 
+    std::copy_n(txExtendedHash.AsSpan().begin(), expectedMailboxSize, result.txId.begin());
+    std::copy_n(txExtendedHash.AsSpan().begin() + expectedMailboxSize, symmetricKeySize,
+                result.txKey.AsMutableSpan().begin());
+
+    bc::core::SecureBuffer rxExtendedHash(extendedHashSize);
     crypto_generichash_state stateRx;
-    crypto_generichash_init(&stateRx, nullptr, 0, expectedMailboxSize);
+    crypto_generichash_init(&stateRx, nullptr, 0, extendedHashSize);
     crypto_generichash_update(&stateRx, sharedSecret.AsSpan().data(), sharedSecret.Size());
     crypto_generichash_update(&stateRx, theirX25519Pk.data(), theirX25519Pk.size());
     crypto_generichash_update(&stateRx, ourX25519PkOpt->data(), ourX25519PkOpt->size());
-    crypto_generichash_final(&stateRx, result.rxId.data(), expectedMailboxSize);
+    crypto_generichash_final(&stateRx, rxExtendedHash.AsMutableSpan().data(), extendedHashSize);
+
+    std::copy_n(rxExtendedHash.AsSpan().begin(), expectedMailboxSize, result.rxId.begin());
+    std::copy_n(rxExtendedHash.AsSpan().begin() + expectedMailboxSize, symmetricKeySize,
+                result.rxKey.AsMutableSpan().begin());
 
     return result;
 }
