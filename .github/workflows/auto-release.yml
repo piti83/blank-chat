@@ -1,0 +1,100 @@
+name: Auto Tag & Yocto SDK Rolling Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  semver-tag-and-detect:
+    name: Auto Tag SemVer & Detect Meta Changes
+    runs-on: ubuntu-latest
+    outputs:
+      meta_changed: ${{ steps.check_changes.outputs.meta_changed }}
+      new_tag: ${{ steps.tagger.outputs.new_tag }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine and Push Next SemVer Tag
+        id: tagger
+        run: |
+          git fetch --tags
+
+          # Get latest tag or default to v0.0.0
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "Latest tag found: $LATEST_TAG"
+
+          # Extract version numbers
+          RAW_VERSION="${LATEST_TAG#v}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$RAW_VERSION"
+          MAJOR=${MAJOR:-0}
+          MINOR=${MINOR:-0}
+          PATCH=${PATCH:-0}
+
+          # Inspect commit message
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          echo "Commit Message: $COMMIT_MSG"
+
+          if [[ "$COMMIT_MSG" == *"[MAJOR]"* ]]; then
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+            PATCH=0
+          elif [[ "$COMMIT_MSG" == *"[MINOR]"* ]]; then
+            MINOR=$((MINOR + 1))
+            PATCH=0
+          else
+            # Default to PATCH increment (or if [PATCH] tag is present)
+            PATCH=$((PATCH + 1))
+          fi
+
+          NEW_TAG="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "Generated New Tag: $NEW_TAG"
+
+          # Create and push git tag
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "$NEW_TAG"
+          git push origin "$NEW_TAG"
+
+          echo "new_tag=$NEW_TAG" >> $GITHUB_OUTPUT
+
+      - name: Check Meta Layer Changes
+        id: check_changes
+        run: |
+          if git diff --name-only HEAD~1 HEAD | grep -q "^meta-blankchat/"; then
+            echo "Changes detected in meta-blankchat layer!"
+            echo "meta_changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "No changes detected in meta-blankchat layer."
+            echo "meta_changed=false" >> $GITHUB_OUTPUT
+          fi
+
+  build-yocto-sdk:
+    name: Build & Publish Yocto SDK
+    needs: semver-tag-and-detect
+    if: ${{ needs.semver-tag-and-detect.outputs.meta_changed == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Yocto SDK
+        run: |
+          python3 scripts/build_yocto.py --sdk
+
+      - name: Upload SDK to GitHub Releases (sdk-latest)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 scripts/upload_sdk.py
