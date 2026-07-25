@@ -125,4 +125,19 @@ TEST_F(FrameTest, ExtractPayloadMovesDataWithoutCopyAndLeavesFrameEmpty)
     EXPECT_TRUE(frame.GetPayload().empty());
 }
 
+TEST_F(FrameTest, MoveAssignmentTransfersOwnershipWithoutLeaks)
+{
+    Payload data = {0xAA, 0xBB, 0xCC};
+    auto original = Frame::CreatePush(defaultId, std::move(data));
+
+    auto moved = Frame::CreatePoll(defaultId);
+
+    moved = std::move(original);
+
+    EXPECT_EQ(moved.GetActionType(), ActionType::PUSH);
+    EXPECT_EQ(moved.GetPayloadLength(), 3);
+    EXPECT_EQ(moved.GetPayload(), (Payload{0xAA, 0xBB, 0xCC}));
+    EXPECT_TRUE(original.GetPayload().empty());
+}
+
 } // namespace bc::protocol

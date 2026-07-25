@@ -12,15 +12,18 @@ add_executable(blank_chat_ut
     libs/crypto/bip39_test.cpp
     libs/crypto/identity_key_test.cpp
     libs/crypto/mailbox_derivation_test.cpp
+    libs/crypto/symmetric_cipher_test.cpp
     libs/domain/client/address_book_test.cpp
     libs/domain/client/config_test.cpp
     libs/domain/client/contact_storage_test.cpp
     libs/domain/client/conversation_cache_test.cpp
+    libs/domain/client/identity_storage_test.cpp
     libs/domain/server/config_test.cpp
     libs/domain/server/message_broker_test.cpp
     libs/network/tcp_client_test.cpp
     libs/network/tcp_server_test.cpp
     libs/network/tcp_session_test.cpp
+    libs/network/tor_control_test.cpp
     libs/protocol/frame_parser_test.cpp
     libs/protocol/frame_test.cpp
     libs/protocol/mailbox_id_test.cpp
