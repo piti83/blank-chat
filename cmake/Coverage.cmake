@@ -23,6 +23,7 @@ function(setup_coverage_target)
                     --filter "${CMAKE_SOURCE_DIR}/libs"
                     --exclude-unreachable-branches
                     --txt-metric branch
+                    --fail-under-line 85
                     --html-details ${CMAKE_BINARY_DIR}/coverage_report/index.html
                     --print-summary
                     --gcov-executable ${GCOV_CMD}

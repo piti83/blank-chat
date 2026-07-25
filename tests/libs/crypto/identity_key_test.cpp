@@ -50,4 +50,16 @@ TEST(IdentityKeyTest, Curve25519SecretKeyDerivationIsDeterministic)
     EXPECT_TRUE(std::equal(span1.begin(), span1.end(), span2.begin()));
 }
 
+TEST(IdentityKeyTest, MoveAssignmentTransfersOwnership)
+{
+    auto key1 = IdentityKey::Generate();
+    auto key2 = IdentityKey::Generate();
+
+    auto originalPk = key1.GetPublicKey();
+
+    key2 = std::move(key1);
+
+    EXPECT_EQ(key2.GetPublicKey(), originalPk);
+}
+
 } // namespace bc::crypto::test
