@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+#include <protocol/protocol_types.h>
+
 namespace bc::protocol {
 
 auto FrameParser::FeedBytes(std::span<const std::uint8_t> data) -> std::size_t
@@ -41,37 +43,6 @@ auto FrameParser::FeedBytes(std::span<const std::uint8_t> data) -> std::size_t
     return initialSize - data.size();
 }
 
-auto FrameParser::ParseHeader() -> void
-{
-    currentAction = static_cast<ActionType>(headerBuffer.at(0));
-
-    std::span<const std::uint8_t, mailboxIdSize> mailboxSpan(headerBuffer.begin() + actionTypeSize,
-                                                             mailboxIdSize);
-    currentMailbox = MailboxID(mailboxSpan);
-
-    // NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers)
-    // NOLINTBEGIN(readability-magic-numbers)
-    const std::size_t lengthOffset = actionTypeSize + mailboxIdSize;
-    expectedPayloadLength = static_cast<PayloadLength>(headerBuffer.at(lengthOffset)) |
-                            (static_cast<PayloadLength>(headerBuffer.at(lengthOffset + 1)) << 8) |
-                            (static_cast<PayloadLength>(headerBuffer.at(lengthOffset + 2)) << 16) |
-                            (static_cast<PayloadLength>(headerBuffer.at(lengthOffset + 3)) << 24);
-    // NOLINTEND(readability-magic-numbers)
-    // NOLINTEND(cppcoreguidelines-avoid-magic-numbers)
-
-    if (expectedPayloadLength > maxPayloadSize) {
-        currentState = ParserState::ERROR_MALFORMED;
-        return;
-    }
-
-    if (expectedPayloadLength == 0) {
-        currentState = ParserState::FRAME_READY;
-    } else {
-        payloadBuffer.reserve(expectedPayloadLength);
-        currentState = ParserState::READING_PAYLOAD;
-    }
-}
-
 auto FrameParser::TryExtractFrame() -> std::optional<Frame>
 {
     if (currentState != ParserState::FRAME_READY) {
@@ -106,6 +77,37 @@ auto FrameParser::TryExtractFrame() -> std::optional<Frame>
 auto FrameParser::HasError() const noexcept -> bool
 {
     return currentState == ParserState::ERROR_MALFORMED;
+}
+
+auto FrameParser::ParseHeader() -> void
+{
+    currentAction = static_cast<ActionType>(headerBuffer.at(0));
+
+    std::span<const std::uint8_t, mailboxIdSize> mailboxSpan(headerBuffer.begin() + actionTypeSize,
+                                                             mailboxIdSize);
+    currentMailbox = MailboxID(mailboxSpan);
+
+    // NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers)
+    // NOLINTBEGIN(readability-magic-numbers)
+    const std::size_t lengthOffset = actionTypeSize + mailboxIdSize;
+    expectedPayloadLength = static_cast<PayloadLength>(headerBuffer.at(lengthOffset)) |
+                            (static_cast<PayloadLength>(headerBuffer.at(lengthOffset + 1)) << 8) |
+                            (static_cast<PayloadLength>(headerBuffer.at(lengthOffset + 2)) << 16) |
+                            (static_cast<PayloadLength>(headerBuffer.at(lengthOffset + 3)) << 24);
+    // NOLINTEND(readability-magic-numbers)
+    // NOLINTEND(cppcoreguidelines-avoid-magic-numbers)
+
+    if (expectedPayloadLength > maxPayloadSize) {
+        currentState = ParserState::ERROR_MALFORMED;
+        return;
+    }
+
+    if (expectedPayloadLength == 0) {
+        currentState = ParserState::FRAME_READY;
+    } else {
+        payloadBuffer.reserve(expectedPayloadLength);
+        currentState = ParserState::READING_PAYLOAD;
+    }
 }
 
 } // namespace bc::protocol

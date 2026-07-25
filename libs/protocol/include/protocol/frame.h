@@ -1,17 +1,10 @@
 #ifndef BC_LIBS_PROTOCOL_INCLUDE_FRAME_H_
 #define BC_LIBS_PROTOCOL_INCLUDE_FRAME_H_
 
-#include <cstdint>
-#include <vector>
-
-#include <protocol/action_type.h>
 #include <protocol/mailbox_id.h>
+#include <protocol/protocol_types.h>
 
 namespace bc::protocol {
-
-using Payload = std::vector<std::uint8_t>;
-using PayloadLength = std::uint32_t;
-using RawFrame = std::vector<std::uint8_t>;
 
 class Frame
 {
@@ -23,7 +16,6 @@ public:
     Frame(Frame&&) noexcept = default;
     auto operator=(Frame&&) noexcept -> Frame& = default;
 
-    // TODO: Create custom destructor to wipe frame from ram
     ~Frame() = default;
 
     [[nodiscard]] static auto CreatePush(const MailboxID& mailboxId, Payload&& payload) -> Frame;

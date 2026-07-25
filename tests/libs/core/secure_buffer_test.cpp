@@ -7,7 +7,7 @@ namespace bc::core {
 class SecureBufferTest : public ::testing::Test
 {
 protected:
-    static auto IsMemoryFilledWith(std::span<const BufferType> span, BufferType value) -> bool
+    static auto IsMemoryFilledWith(std::span<const CoreByte> span, CoreByte value) -> bool
     {
         for (auto byte : span) {
             if (byte != value) {
@@ -122,8 +122,8 @@ TEST_F(SecureBufferTest, ConstCorrectnessAndSpanAccess)
     EXPECT_EQ(constSpan[5], 0x42);
     EXPECT_EQ(constBuf.Data()[5], 0x42);
 
-    static_assert(std::is_same_v<decltype(constSpan), std::span<const BufferType>>);
-    static_assert(std::is_same_v<decltype(mutSpan), std::span<BufferType>>);
+    static_assert(std::is_same_v<decltype(constSpan), std::span<const CoreByte>>);
+    static_assert(std::is_same_v<decltype(mutSpan), std::span<CoreByte>>);
 }
 
 } // namespace bc::core

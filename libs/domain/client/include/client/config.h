@@ -5,17 +5,15 @@
 #include <filesystem>
 #include <optional>
 
-namespace bc::domain::client {
+#include <client/client_types.h>
+#include <network/network_types.h>
 
-constexpr std::uint16_t defaultTorSocksPort = 9050;
-constexpr std::uint16_t defaultOnionPort = 80;
-constexpr std::uint32_t defaultCbrIntervalMs = 5000;
-constexpr float defaultPoissonLambda = 5.0F;
+namespace bc::domain::client {
 
 struct NetworkConfig
 {
     std::string torSocksHost{"127.0.0.1"};
-    std::uint16_t torSocksPort{defaultTorSocksPort};
+    std::uint16_t torSocksPort{network::defaultTorPort};
 };
 
 struct RelayConfig
@@ -27,8 +25,8 @@ struct RelayConfig
 struct ObfuscationConfig
 {
     std::string mode{"cbr"};
-    std::uint32_t cbr_interval_ms{defaultCbrIntervalMs};
-    float poissonLambda{defaultPoissonLambda};
+    std::uint32_t cbr_interval_ms{network::defaultCbrIntervalMs};
+    float poissonLambda{network::defaultPoissonLambda};
 };
 
 struct StorageConfig

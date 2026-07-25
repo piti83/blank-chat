@@ -4,9 +4,9 @@
 #include <cstddef>
 #include <string_view>
 
-namespace bc::core {
+#include <core/core_types.h>
 
-constexpr std::size_t defaultSecureStringCapacity = 256;
+namespace bc::core {
 
 class SecureString
 {

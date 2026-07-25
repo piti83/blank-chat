@@ -4,7 +4,7 @@
 #include <format>
 #include <utility>
 
-#include <core/log_level.h>
+#include <core/core_types.h>
 
 namespace bc::core {
 

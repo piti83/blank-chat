@@ -1,7 +1,5 @@
 #include "client/address_book.h"
 
-#include <unordered_map>
-
 #include <client/contact.h>
 #include <client/contact_storage.h>
 #include <core/logger.h>

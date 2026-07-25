@@ -9,14 +9,12 @@
 
 #include <core/secure_string.h>
 #include <crypto/bip39_dictionary.h>
+#include <crypto/crypto_types.h>
 #include <crypto/identity_key.h>
 
 #include <sodium/crypto_hash_sha256.h>
 
 namespace bc::crypto::bip39 {
-
-constexpr std::size_t bipBitsAmount = 264;
-constexpr std::size_t wordsInMnemonic = 24;
 
 auto Encode(const PublicKeyType& pubKey) -> core::SecureString
 {

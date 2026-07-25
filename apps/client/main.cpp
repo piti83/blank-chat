@@ -11,6 +11,26 @@
 
 #include <cli/repl.h>
 
+auto InitializeConfigs() -> std::optional<bc::domain::client::ClientConfig>
+{
+    bc::domain::client::ClientConfig config;
+    std::filesystem::path configPath = "/etc/blank-chat/client_config.toml";
+    if (auto hasVal = bc::domain::client::LoadConfig(configPath)) {
+        config = *hasVal;
+    } else {
+        BC_ERROR("Failed to parse client config file: {}", configPath.string());
+        BC_INFO("Falling back to default configuration.");
+    }
+
+    if (config.relayConfig.onionAddress == "CHANGE_ME.onion") {
+        BC_CRITICAL("You must configure the server's .onion address before starting!");
+        BC_INFO("Please edit: {}", configPath.string());
+        return std::nullopt;
+    }
+
+    return config;
+}
+
 auto InitializeIdentity() -> std::optional<bc::crypto::IdentityKey>
 {
     std::filesystem::path identityPath = "/etc/blank-chat/identity.json";
@@ -36,30 +56,10 @@ auto InitializeIdentity() -> std::optional<bc::crypto::IdentityKey>
             BC_CRITICAL("Failed to save the new identity to disk. Check permissions.");
             return std::nullopt;
         }
-        std::cout << "[+] New identity generated and saved successfully.\n";
+        std::cout << "New identity generated and saved successfully.\n";
         BC_INFO("Successfully generated new static IdentityKey.");
     }
     return myIdentityOpt;
-}
-
-auto InitializeConfigs() -> std::optional<bc::domain::client::ClientConfig>
-{
-    bc::domain::client::ClientConfig config;
-    std::filesystem::path configPath = "/etc/blank-chat/client_config.toml";
-    if (auto hasVal = bc::domain::client::LoadConfig(configPath)) {
-        config = *hasVal;
-    } else {
-        BC_ERROR("Failed to parse client config file: {}", configPath.string());
-        BC_INFO("Falling back to default configuration.");
-    }
-
-    if (config.relayConfig.onionAddress == "CHANGE_ME.onion") {
-        BC_CRITICAL("You must configure the server's .onion address before starting!");
-        BC_INFO("Please edit: {}", configPath.string());
-        return std::nullopt;
-    }
-
-    return config;
 }
 
 auto main() -> int

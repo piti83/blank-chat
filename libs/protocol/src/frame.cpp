@@ -2,13 +2,9 @@
 
 #include <utility>
 
-namespace bc::protocol {
+#include <protocol/protocol_types.h>
 
-Frame::Frame(ActionType action, const MailboxID& mailboxId, Payload&& payload)
-    : action(action), mailboxId(mailboxId),
-      payloadLength(static_cast<PayloadLength>(payload.size())), payload(std::move(payload))
-{
-}
+namespace bc::protocol {
 
 auto Frame::CreatePush(const MailboxID& mailboxId, Payload&& payload) -> Frame
 {
@@ -74,6 +70,12 @@ auto Frame::GetPayload() const noexcept -> const Payload&
 auto Frame::ExtractPayload() && noexcept -> Payload
 {
     return std::move(payload);
+}
+
+Frame::Frame(ActionType action, const MailboxID& mailboxId, Payload&& payload)
+    : action(action), mailboxId(mailboxId),
+      payloadLength(static_cast<PayloadLength>(payload.size())), payload(std::move(payload))
+{
 }
 
 } // namespace bc::protocol

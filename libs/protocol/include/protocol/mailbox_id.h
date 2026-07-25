@@ -5,9 +5,9 @@
 #include <cstdint>
 #include <span>
 
-namespace bc::protocol {
+#include <protocol/protocol_types.h>
 
-constexpr std::uint8_t mailboxIdSize = 16;
+namespace bc::protocol {
 
 class MailboxID
 {

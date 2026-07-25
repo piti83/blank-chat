@@ -12,20 +12,20 @@
 #include <core/string_utils.h>
 #include <crypto/bip39.h>
 #include <crypto/symmetric_cipher.h>
-#include <protocol/action_type.h>
+#include <network/tcp_client.h>
 #include <protocol/frame.h>
 #include <protocol/mailbox_id.h>
+#include <protocol/protocol_types.h>
 
-#include "network/tcp_client.h"
+#include "network/network_types.h"
+#include <cli/cli_types.h>
 
 namespace {
-
-constexpr std::size_t maxPayloadReserve = 4096;
 
 auto ReadSecurePayload() -> bc::protocol::Payload
 {
     bc::protocol::Payload payload;
-    payload.reserve(maxPayloadReserve);
+    payload.reserve(bc::cli::maxPayloadReserve);
     char character = 0;
     if (std::cin.peek() == ' ') {
         std::cin.get(character);
@@ -47,14 +47,6 @@ Repl::Repl(bc::domain::client::AddressBook& addressBook,
     : client(ioContext, torHost, torPort), addressBook(addressBook), cache(cache),
       identity(identity), relayAddress(std::move(relayAddress)), relayPort(relayPort)
 {
-}
-
-Repl::~Repl()
-{
-    ioContext.stop();
-    if (asioThread.joinable()) {
-        asioThread.join();
-    }
 }
 
 auto Repl::Run() -> void
@@ -83,6 +75,118 @@ auto Repl::Run() -> void
             std::cout << "Unknown command.\n";
             std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
         }
+    }
+}
+
+Repl::~Repl()
+{
+    ioContext.stop();
+    if (asioThread.joinable()) {
+        asioThread.join();
+    }
+}
+
+auto Repl::HandleConnect() -> void
+{
+    std::cout << "Connecting via Tor proxy...\n";
+    if (client.Connect(relayAddress, relayPort)) {
+        std::cout << "Successfully connected.\n";
+        contactAliases = addressBook.GetAllAliases();
+
+        client.StartAsyncEngine(
+            [this]() -> bc::protocol::Frame { return GetNextFrameForCBR(); },
+            [this](bc::protocol::Frame&& frame) -> void { OnFrameReceived(std::move(frame)); },
+            std::chrono::milliseconds(bc::network::defaultCbrIntervalMs));
+
+        ioContext.restart();
+
+        asioThread = std::thread([this]() -> void {
+            auto workGuard = boost::asio::make_work_guard(ioContext);
+            ioContext.run();
+        });
+    } else {
+        std::cout << "Failed to connect.\n";
+    }
+}
+
+auto Repl::HandleSend() -> void
+{
+    std::string alias;
+    if (!(std::cin >> alias))
+        return;
+
+    auto payload = ReadSecurePayload();
+
+    const auto* contact = addressBook.GetContact(alias);
+    if (contact == nullptr) {
+        std::cout << "Error: Contact '" << alias << "' not found in address book.\n";
+        sodium_memzero(payload.data(), payload.size());
+        return;
+    }
+
+    std::string msgId = bc::core::HashPayload(payload);
+
+    bc::domain::client::CacheEntry entry{
+        .id = msgId,
+        .timestamp = static_cast<std::uint64_t>(std::time(nullptr)),
+        .direction = bc::domain::client::MessageDirection::OUTBOUND,
+        .alias = alias,
+        .status = bc::domain::client::MessageStatus::PENDING_ACK,
+        .payload = payload};
+    cache.AppendMessage(entry);
+
+    auto ciphertextOpt =
+        bc::crypto::SymmetricCipher::EncryptWithPadding(contact->txKey.AsSpan(), payload);
+
+    sodium_memzero(payload.data(), payload.size());
+
+    if (!ciphertextOpt) {
+        std::cout << "Encryption failed for contact '" << alias << "'. Message dropped.\n";
+        return;
+    }
+
+    auto frame = bc::protocol::Frame::CreatePush(contact->txMailboxId, std::move(*ciphertextOpt));
+
+    {
+        std::scoped_lock lock(outboxMutex);
+        outbox.push(std::move(frame));
+    }
+    PrintThreadSafe("Message added to Outbox 🔒 Will be transmitted on next CBR tick.\n");
+}
+
+auto Repl::HandleHistory() -> void
+{
+    std::string alias;
+    if (!(std::cin >> alias)) {
+        return;
+    }
+
+    auto history = cache.LoadHistory(alias);
+
+    std::cout << "--- History for " << alias << " ---\n";
+    for (const auto& entry : history) {
+        std::cout << "["
+                  << (entry.direction == bc::domain::client::MessageDirection::INBOUND ? "IN"
+                                                                                       : "OUT")
+                  << "] "
+                  << "["
+                  << (entry.status == bc::domain::client::MessageStatus::PENDING_ACK ? "WAIT"
+                                                                                     : "OK")
+                  << "] " << std::string(entry.payload.begin(), entry.payload.end()) << "\n";
+    }
+}
+
+auto Repl::HandleList() -> void
+{
+    auto aliases = addressBook.GetAllAliases();
+    if (aliases.empty()) {
+        std::cout << "Address book is empty.\n";
+        return;
+    }
+
+    std::cout << "--- Contacts ---\n";
+    for (const auto& a : aliases) {
+        std::cout << "- " << a << "\n";
     }
 }
 
@@ -250,110 +354,6 @@ auto Repl::PrintThreadSafe(std::string_view msg) -> void
 {
     std::scoped_lock lock(stdoutMutex);
     std::cout << msg << std::flush;
-}
-
-auto Repl::HandleConnect() -> void
-{
-    std::cout << "Connecting via Tor proxy...\n";
-    if (client.Connect(relayAddress, relayPort)) {
-        std::cout << "Successfully connected.\n";
-        contactAliases = addressBook.GetAllAliases();
-
-        client.StartAsyncEngine(
-            [this]() -> bc::protocol::Frame { return GetNextFrameForCBR(); },
-            [this](bc::protocol::Frame&& frame) -> void { OnFrameReceived(std::move(frame)); },
-            std::chrono::milliseconds(bc::network::defaultCbrInterval));
-
-        ioContext.restart();
-
-        asioThread = std::thread([this]() -> void {
-            auto workGuard = boost::asio::make_work_guard(ioContext);
-            ioContext.run();
-        });
-    } else {
-        std::cout << "Failed to connect.\n";
-    }
-}
-
-auto Repl::HandleSend() -> void
-{
-    std::string alias;
-    if (!(std::cin >> alias))
-        return;
-
-    auto payload = ReadSecurePayload();
-
-    const auto* contact = addressBook.GetContact(alias);
-    if (contact == nullptr) {
-        std::cout << "Error: Contact '" << alias << "' not found in address book.\n";
-        sodium_memzero(payload.data(), payload.size());
-        return;
-    }
-
-    std::string msgId = bc::core::HashPayload(payload);
-
-    bc::domain::client::CacheEntry entry{
-        .id = msgId,
-        .timestamp = static_cast<std::uint64_t>(std::time(nullptr)),
-        .direction = bc::domain::client::MessageDirection::OUTBOUND,
-        .alias = alias,
-        .status = bc::domain::client::MessageStatus::PENDING_ACK,
-        .payload = payload};
-    cache.AppendMessage(entry);
-
-    auto ciphertextOpt =
-        bc::crypto::SymmetricCipher::EncryptWithPadding(contact->txKey.AsSpan(), payload);
-
-    sodium_memzero(payload.data(), payload.size());
-
-    if (!ciphertextOpt) {
-        std::cout << "Encryption failed for contact '" << alias << "'. Message dropped.\n";
-        return;
-    }
-
-    auto frame = bc::protocol::Frame::CreatePush(contact->txMailboxId, std::move(*ciphertextOpt));
-
-    {
-        std::scoped_lock lock(outboxMutex);
-        outbox.push(std::move(frame));
-    }
-    PrintThreadSafe("Message added to Outbox 🔒 Will be transmitted on next CBR tick.\n");
-}
-
-auto Repl::HandleHistory() -> void
-{
-    std::string alias;
-    if (!(std::cin >> alias)) {
-        return;
-    }
-
-    auto history = cache.LoadHistory(alias);
-
-    std::cout << "--- History for " << alias << " ---\n";
-    for (const auto& entry : history) {
-        std::cout << "["
-                  << (entry.direction == bc::domain::client::MessageDirection::INBOUND ? "IN"
-                                                                                       : "OUT")
-                  << "] "
-                  << "["
-                  << (entry.status == bc::domain::client::MessageStatus::PENDING_ACK ? "WAIT"
-                                                                                     : "OK")
-                  << "] " << std::string(entry.payload.begin(), entry.payload.end()) << "\n";
-    }
-}
-
-auto Repl::HandleList() -> void
-{
-    auto aliases = addressBook.GetAllAliases();
-    if (aliases.empty()) {
-        std::cout << "Address book is empty.\n";
-        return;
-    }
-
-    std::cout << "--- Contacts ---\n";
-    for (const auto& a : aliases) {
-        std::cout << "- " << a << "\n";
-    }
 }
 
 } // namespace bc::cli

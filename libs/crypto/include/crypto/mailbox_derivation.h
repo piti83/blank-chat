@@ -1,15 +1,10 @@
 #ifndef BC_LIBS_CRYPTO_INCLUDE_MAILBOX_DERIVATION_H_
 #define BC_LIBS_CRYPTO_INCLUDE_MAILBOX_DERIVATION_H_
 
+#include <crypto/crypto_types.h>
 #include <crypto/identity_key.h>
 
 namespace bc::crypto {
-
-constexpr std::size_t expectedMailboxSize = 16;
-constexpr std::size_t symmetricKeySize = 32;
-constexpr std::size_t extendedHashSize = expectedMailboxSize + symmetricKeySize;
-
-using MailboxIdBuffer = std::array<std::uint8_t, expectedMailboxSize>;
 
 struct DerivedMailboxes
 {

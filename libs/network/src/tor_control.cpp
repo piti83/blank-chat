@@ -3,12 +3,11 @@
 #include <istream>
 
 #include <core/logger.h>
+#include <network/network_types.h>
 
 namespace bc::network {
 
 namespace {
-
-constexpr std::size_t prefixLength = 14;
 
 [[nodiscard]] auto ConnectToTorControl(boost::asio::io_context& ioContext,
                                        std::string_view controlHost, std::uint16_t controlPort)

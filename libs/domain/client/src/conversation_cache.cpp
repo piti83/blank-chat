@@ -112,11 +112,6 @@ auto ConversationCache::Initialize(const std::filesystem::path& cacheDirectory) 
     return !static_cast<bool>(ec);
 }
 
-auto ConversationCache::GetFilePathForAlias(std::string_view alias) const -> std::filesystem::path
-{
-    return cacheDir / ("history_" + std::string(alias) + ".jsonl");
-}
-
 auto ConversationCache::AppendMessage(const CacheEntry& entry) -> void
 {
     auto path = GetFilePathForAlias(entry.alias);
@@ -209,6 +204,11 @@ auto ConversationCache::DeleteHistory(std::string_view alias) -> bool
     auto path = GetFilePathForAlias(alias);
     std::error_code ec;
     return std::filesystem::remove(path, ec);
+}
+
+auto ConversationCache::GetFilePathForAlias(std::string_view alias) const -> std::filesystem::path
+{
+    return cacheDir / ("history_" + std::string(alias) + ".jsonl");
 }
 
 } // namespace bc::domain::client

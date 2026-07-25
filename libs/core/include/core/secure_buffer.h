@@ -1,12 +1,11 @@
 #ifndef BC_LIBS_CORE_INCLUDE_SECUREBUFFER_H_
 #define BC_LIBS_CORE_INCLUDE_SECUREBUFFER_H_
 
-#include <cstdint>
 #include <span>
 
-namespace bc::core {
+#include <core/core_types.h>
 
-using BufferType = std::uint8_t;
+namespace bc::core {
 
 class SecureBuffer
 {
@@ -23,16 +22,16 @@ public:
     SecureBuffer(SecureBuffer&& other) noexcept;
     auto operator=(SecureBuffer&& other) noexcept -> SecureBuffer&;
 
-    [[nodiscard]] auto Data() noexcept -> BufferType*;
-    [[nodiscard]] auto Data() const noexcept -> const BufferType*;
+    [[nodiscard]] auto Data() noexcept -> CoreByte*;
+    [[nodiscard]] auto Data() const noexcept -> const CoreByte*;
     [[nodiscard]] auto Size() const noexcept -> std::size_t;
     [[nodiscard]] auto IsEmpty() const noexcept -> bool;
-    [[nodiscard]] auto AsSpan() const noexcept -> std::span<const BufferType>;
-    [[nodiscard]] auto AsMutableSpan() noexcept -> std::span<BufferType>;
+    [[nodiscard]] auto AsSpan() const noexcept -> std::span<const CoreByte>;
+    [[nodiscard]] auto AsMutableSpan() noexcept -> std::span<CoreByte>;
 
 private:
     std::size_t bufferSize{};
-    BufferType* bufferData{nullptr};
+    CoreByte* bufferData{nullptr};
 };
 
 } // namespace bc::core

@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <span>
 
+#include <protocol/protocol_types.h>
+
 namespace bc::protocol {
 
 MailboxID::MailboxID(const std::array<uint8_t, mailboxIdSize>& bytes) : bytes(bytes)

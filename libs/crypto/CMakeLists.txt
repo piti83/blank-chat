@@ -19,6 +19,7 @@ target_include_directories(crypto
 
 target_link_libraries(crypto PUBLIC
     blankchat::core
+    blankchat::protocol
     ext::sodium
 )
 

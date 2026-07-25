@@ -10,6 +10,7 @@ namespace bc::domain::client {
 
 [[nodiscard]] auto LoadIdentity(const std::filesystem::path& identityPath)
     -> std::optional<bc::crypto::IdentityKey>;
+
 auto SaveIdentity(const std::filesystem::path& identityPath,
                   const bc::crypto::IdentityKey& identity) -> bool;
 

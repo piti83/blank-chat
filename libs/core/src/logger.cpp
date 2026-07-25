@@ -4,7 +4,7 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 
-#include <core/log_level.h>
+#include <core/core_types.h>
 
 namespace bc::core {
 

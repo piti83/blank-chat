@@ -1,11 +1,16 @@
-#ifndef BC_LIBS_CORE_INCLUDE_LOGLEVEL_H_
-#define BC_LIBS_CORE_INCLUDE_LOGLEVEL_H_
+#ifndef BC_LIBS_CORE_INCLUDE_CORETYPES_H_
+#define BC_LIBS_CORE_INCLUDE_CORETYPES_H_
 
 #include <cstdint>
 
 #include <spdlog/spdlog.h>
 
 namespace bc::core {
+
+constexpr std::size_t defaultSecureStringCapacity = 256;
+constexpr std::size_t defaultSecureBufferSize = 128;
+
+using CoreByte = std::uint8_t;
 
 enum class Level : std::uint8_t { Trace, Debug, Info, Warn, Error, Critical };
 
@@ -30,4 +35,4 @@ static constexpr auto MapLevel(Level level) -> spdlog::level::level_enum
 
 } // namespace bc::core
 
-#endif // BC_LIBS_CORE_INCLUDE_LOGLEVEL_H_
+#endif // BC_LIBS_CORE_INCLUDE_CORETYPES_H_

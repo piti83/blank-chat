@@ -19,6 +19,7 @@ target_compile_definitions(domain_client PRIVATE
 target_link_libraries(domain_client PUBLIC
     blankchat::core
     blankchat::crypto
+    blankchat::network
     blankchat::protocol
     simdjson::simdjson
     tomlplusplus::tomlplusplus

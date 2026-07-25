@@ -1,20 +1,16 @@
 #ifndef BC_LIBS_NETWORK_INCLUDE_TCPSESSION_H_
 #define BC_LIBS_NETWORK_INCLUDE_TCPSESSION_H_
 
-#include <array>
-#include <cstdint>
 #include <memory>
 #include <queue>
 
 #include <boost/asio.hpp>
 
+#include <network/network_types.h>
 #include <protocol/frame_parser.h>
 #include <protocol/i_frame_handler.h>
 
 namespace bc::network {
-
-using TcpSocket = boost::asio::ip::tcp::socket;
-using ErrorCode = boost::system::error_code;
 
 class TcpSession : public std::enable_shared_from_this<TcpSession>
 {
@@ -37,13 +33,10 @@ private:
 
     auto ProcessExtractedFrame() -> void;
 
-    static constexpr std::size_t bufferSize = 8192;
-    using BufferType = std::array<std::uint8_t, bufferSize>;
-
     TcpSocket socket;
     bc::protocol::IFrameHandler& handler;
     protocol::FrameParser parser;
-    BufferType readBuffer{};
+    NetworkBufferType readBuffer{};
 
     std::queue<bc::protocol::RawFrame> writeQueue;
     bool writeInProgress{false};

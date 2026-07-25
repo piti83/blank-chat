@@ -6,6 +6,8 @@
 
 #include <core/secure_buffer.h>
 
+#include "protocol/protocol_types.h"
+
 namespace bc::crypto {
 
 auto DerivePairwiseMailboxes(const IdentityKey& ourIdentity,
@@ -44,8 +46,8 @@ auto DerivePairwiseMailboxes(const IdentityKey& ourIdentity,
     crypto_generichash_update(&stateTx, theirX25519Pk.data(), theirX25519Pk.size());
     crypto_generichash_final(&stateTx, txExtendedHash.AsMutableSpan().data(), extendedHashSize);
 
-    std::copy_n(txExtendedHash.AsSpan().begin(), expectedMailboxSize, result.txId.begin());
-    std::copy_n(txExtendedHash.AsSpan().begin() + expectedMailboxSize, symmetricKeySize,
+    std::copy_n(txExtendedHash.AsSpan().begin(), protocol::mailboxIdSize, result.txId.begin());
+    std::copy_n(txExtendedHash.AsSpan().begin() + protocol::mailboxIdSize, symmetricKeySize,
                 result.txKey.AsMutableSpan().begin());
 
     bc::core::SecureBuffer rxExtendedHash(extendedHashSize);
@@ -56,8 +58,8 @@ auto DerivePairwiseMailboxes(const IdentityKey& ourIdentity,
     crypto_generichash_update(&stateRx, ourX25519PkOpt->data(), ourX25519PkOpt->size());
     crypto_generichash_final(&stateRx, rxExtendedHash.AsMutableSpan().data(), extendedHashSize);
 
-    std::copy_n(rxExtendedHash.AsSpan().begin(), expectedMailboxSize, result.rxId.begin());
-    std::copy_n(rxExtendedHash.AsSpan().begin() + expectedMailboxSize, symmetricKeySize,
+    std::copy_n(rxExtendedHash.AsSpan().begin(), protocol::mailboxIdSize, result.rxId.begin());
+    std::copy_n(rxExtendedHash.AsSpan().begin() + protocol::mailboxIdSize, symmetricKeySize,
                 result.rxKey.AsMutableSpan().begin());
 
     return result;

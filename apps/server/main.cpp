@@ -1,4 +1,5 @@
 #include <filesystem>
+#include <optional>
 
 #include <boost/asio.hpp>
 #include <sodium.h>
@@ -9,13 +10,8 @@
 #include <server/config.h>
 #include <server/message_broker.h>
 
-auto main() -> int
+auto InitializeConfig() -> std::optional<bc::domain::server::ServerConfig>
 {
-    if (sodium_init() < 0) {
-        return 1;
-    }
-
-    bc::core::Logger::Init();
     std::filesystem::path configPath = "/etc/blank-chat/server_config.toml";
 
     bc::domain::server::ServerConfig config;
@@ -24,6 +20,22 @@ auto main() -> int
         config = *hasVal;
     } else {
         BC_ERROR("Failed to parse server config file: {}", configPath.string());
+        return std::nullopt;
+    }
+
+    return config;
+}
+
+auto main() -> int
+{
+    if (sodium_init() < 0) {
+        return 1;
+    }
+
+    bc::core::Logger::Init();
+
+    std::optional<bc::domain::server::ServerConfig> config = InitializeConfig();
+    if (!config) {
         return 1;
     }
 
@@ -32,9 +44,9 @@ auto main() -> int
     boost::asio::io_context ioContext;
 
     bc::network::HiddenServiceConfig hiddenServiceConfig{
-        .controlHost = config.networkConfig.torControlHost,
-        .controlPort = config.networkConfig.torControlPort,
-        .localListenPort = config.networkConfig.listenPort};
+        .controlHost = config->networkConfig.torControlHost,
+        .controlPort = config->networkConfig.torControlPort,
+        .localListenPort = config->networkConfig.listenPort};
 
     auto onionAddressOpt =
         bc::network::TorControl::CreateEphemeralHiddenService(ioContext, hiddenServiceConfig);
@@ -48,7 +60,7 @@ auto main() -> int
     BC_INFO("Distribute this address to your clients Out-Of-Band.");
 
     bc::domain::server::MessageBroker messageBroker;
-    bc::network::TcpServer tcpServer(ioContext, config.networkConfig.listenPort, messageBroker);
+    bc::network::TcpServer tcpServer(ioContext, config->networkConfig.listenPort, messageBroker);
 
     tcpServer.Start();
     ioContext.run();

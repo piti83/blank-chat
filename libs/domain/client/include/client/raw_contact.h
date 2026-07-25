@@ -4,7 +4,7 @@
 #include <optional>
 #include <string>
 
-#include <client/public_key.h>
+#include <client/client_types.h>
 
 namespace bc::domain::client {
 

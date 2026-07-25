@@ -1,22 +1,20 @@
 #ifndef BC_LIBS_CRYPTO_INCLUDE_IDENTITY_KEY_H_
 #define BC_LIBS_CRYPTO_INCLUDE_IDENTITY_KEY_H_
 
-#include <array>
 #include <cstdint>
 #include <optional>
 #include <span>
 
 #include <core/secure_buffer.h>
+#include <crypto/crypto_types.h>
 
 namespace bc::crypto {
-
-constexpr std::size_t publicKeySize = 32;
-using PublicKeyType = std::array<std::uint8_t, publicKeySize>;
 
 class IdentityKey
 {
 public:
     static auto Generate() -> IdentityKey;
+
     [[nodiscard]] static auto Restore(PublicKeyType pk, bc::core::SecureBuffer sk)
         -> std::optional<IdentityKey>;
 

@@ -7,13 +7,10 @@
 #include <string_view>
 #include <vector>
 
+#include <client/client_types.h>
 #include <protocol/frame.h>
 
 namespace bc::domain::client {
-
-enum class MessageDirection : std::uint8_t { INBOUND, OUTBOUND };
-
-enum class MessageStatus : std::uint8_t { PENDING_ACK, DELIVERED, FAILED };
 
 struct CacheEntry
 {
@@ -24,6 +21,7 @@ struct CacheEntry
     MessageStatus status{MessageStatus::FAILED};
     bc::protocol::Payload payload;
 };
+
 class ConversationCache
 {
 public:

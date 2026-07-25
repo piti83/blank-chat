@@ -4,11 +4,6 @@
 
 namespace bc::crypto {
 
-IdentityKey::IdentityKey(PublicKeyType pk, bc::core::SecureBuffer sk)
-    : publicKey(pk), secretKey(std::move(sk))
-{
-}
-
 auto IdentityKey::Generate() -> IdentityKey
 {
     PublicKeyType pk{};
@@ -58,6 +53,11 @@ auto IdentityKey::GetCurve25519SecretKey() const noexcept -> std::optional<bc::c
     }
 
     return x25519Sk;
+}
+
+IdentityKey::IdentityKey(PublicKeyType pk, bc::core::SecureBuffer sk)
+    : publicKey(pk), secretKey(std::move(sk))
+{
 }
 
 } // namespace bc::crypto
