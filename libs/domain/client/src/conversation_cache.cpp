@@ -1,3 +1,5 @@
+#include "client/conversation_cache.h"
+
 #include <algorithm>
 #include <fstream>
 #include <system_error>
@@ -5,7 +7,6 @@
 #include <core/logger.h>
 #include <core/string_utils.h>
 
-#include "client/conversation_cache.h"
 #include <simdjson.h>
 
 namespace {

@@ -1,8 +1,8 @@
+#include "protocol/frame_parser.h"
+
 #include <algorithm>
 
 #include <protocol/protocol_types.h>
-
-#include "protocol/frame_parser.h"
 
 namespace bc::protocol {
 

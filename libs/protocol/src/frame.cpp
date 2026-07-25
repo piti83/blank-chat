@@ -1,8 +1,8 @@
+#include "protocol/frame.h"
+
 #include <utility>
 
 #include <protocol/protocol_types.h>
-
-#include "protocol/frame.h"
 
 namespace bc::protocol {
 

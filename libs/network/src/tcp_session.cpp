@@ -1,3 +1,5 @@
+#include "network/tcp_session.h"
+
 #include <cstddef>
 #include <utility>
 
@@ -6,8 +8,6 @@
 
 #include <core/logger.h>
 #include <protocol/protocol_types.h>
-
-#include "network/tcp_session.h"
 
 namespace bc::network {
 

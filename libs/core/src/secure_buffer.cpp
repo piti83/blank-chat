@@ -1,10 +1,10 @@
+#include "core/secure_buffer.h"
+
 #include <utility>
 
 #include <sodium.h>
 
 #include <core/logger.h>
-
-#include "core/secure_buffer.h"
 
 namespace bc::core {
 

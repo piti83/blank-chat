@@ -1,3 +1,5 @@
+#include "network/tcp_client.h"
+
 #include <algorithm>
 #include <array>
 #include <iterator>
@@ -7,8 +9,6 @@
 #include <sodium.h>
 
 #include <core/logger.h>
-
-#include "network/tcp_client.h"
 
 namespace bc::network {
 
