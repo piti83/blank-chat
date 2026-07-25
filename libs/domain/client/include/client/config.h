@@ -12,26 +12,26 @@ namespace bc::domain::client {
 
 struct NetworkConfig
 {
-    std::string torSocksHost{"127.0.0.1"};
-    std::uint16_t torSocksPort{network::defaultTorPort};
+    std::string torSocksHost;
+    std::uint16_t torSocksPort{0};
 };
 
 struct RelayConfig
 {
-    std::string onionAddress{"CHANGE_ME.onion"};
-    std::uint16_t onionPort{defaultOnionPort};
+    std::string onionAddress;
+    std::uint16_t onionPort{0};
 };
 
 struct ObfuscationConfig
 {
-    std::string mode{"cbr"};
-    std::uint32_t cbr_interval_ms{network::defaultCbrIntervalMs};
-    float poissonLambda{network::defaultPoissonLambda};
+    std::string mode;
+    std::uint32_t cbr_interval_ms{0};
+    float poissonLambda{0.0F};
 };
 
 struct StorageConfig
 {
-    std::string contactsFilePath{"contacts.json"};
+    std::string contactsFilePath;
 };
 
 struct ClientConfig

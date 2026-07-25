@@ -10,6 +10,7 @@
 #include <boost/asio.hpp>
 
 #include <client/address_book.h>
+#include <client/config.h>
 #include <client/conversation_cache.h>
 #include <crypto/identity_key.h>
 #include <network/tcp_client.h>
@@ -22,7 +23,8 @@ public:
     explicit Repl(bc::domain::client::AddressBook& addressBook,
                   bc::domain::client::ConversationCache& cache,
                   const bc::crypto::IdentityKey& identity, std::string_view torHost,
-                  std::uint16_t torPort, std::string relayAddress, std::uint16_t relayPort);
+                  std::uint16_t torPort, std::string relayAddress, std::uint16_t relayPort,
+                  bc::domain::client::ObfuscationConfig obfuscationConfig);
 
     auto Run() -> void;
 
@@ -63,6 +65,8 @@ private:
 
     std::string relayAddress;
     std::uint16_t relayPort;
+
+    bc::domain::client::ObfuscationConfig obfuscationConfig;
 };
 
 } // namespace bc::cli

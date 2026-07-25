@@ -19,25 +19,23 @@ protected:
 
 TEST_F(MessageBrokerTest, ProcessPollOnEmptyBrokerReturnsNullopt)
 {
-    MessageBroker broker;
+    MessageBroker broker(50);
     auto result = broker.ProcessPoll(aliceId);
     EXPECT_FALSE(result.has_value());
 }
 
 TEST_F(MessageBrokerTest, PushAndPollReconstructsFrameProperly)
 {
-    MessageBroker broker;
+    MessageBroker broker(50);
     bc::protocol::Payload data = {0x01, 0x02, 0x03};
     auto frameIn = bc::protocol::Frame::CreatePush(aliceId, std::move(data));
 
     broker.ProcessPush(std::move(frameIn));
 
     auto result = broker.ProcessPoll(aliceId);
-
     ASSERT_TRUE(result.has_value());
 
     auto frameOut = std::move(result.value());
-
     EXPECT_EQ(frameOut.GetActionType(), bc::protocol::ActionType::PUSH);
     EXPECT_EQ(frameOut.GetMailboxID(), aliceId);
     EXPECT_EQ(frameOut.GetPayloadLength(), 3);
@@ -49,8 +47,7 @@ TEST_F(MessageBrokerTest, PushAndPollReconstructsFrameProperly)
 
 TEST_F(MessageBrokerTest, MessagesAreProcessedInStrictFIFOOrder)
 {
-    MessageBroker broker;
-
+    MessageBroker broker(50);
     broker.ProcessPush(bc::protocol::Frame::CreatePush(aliceId, {0x11}));
     broker.ProcessPush(bc::protocol::Frame::CreatePush(aliceId, {0x22}));
     broker.ProcessPush(bc::protocol::Frame::CreatePush(aliceId, {0x33}));
@@ -72,8 +69,7 @@ TEST_F(MessageBrokerTest, MessagesAreProcessedInStrictFIFOOrder)
 
 TEST_F(MessageBrokerTest, MailboxesAreStrictlyIsolated)
 {
-    MessageBroker broker;
-
+    MessageBroker broker(50);
     broker.ProcessPush(bc::protocol::Frame::CreatePush(bobId, {0xBE, 0xEF}));
 
     auto aliceResult = broker.ProcessPoll(aliceId);
@@ -82,6 +78,25 @@ TEST_F(MessageBrokerTest, MailboxesAreStrictlyIsolated)
     auto bobResult = broker.ProcessPoll(bobId);
     ASSERT_TRUE(bobResult.has_value());
     EXPECT_EQ(bobResult.value().GetPayload(), (bc::protocol::Payload{0xBE, 0xEF}));
+}
+
+TEST_F(MessageBrokerTest, EnforcesMemoryQuotaAndDropsExcessMessages)
+{
+    MessageBroker broker(2);
+    broker.ProcessPush(bc::protocol::Frame::CreatePush(aliceId, {0x11}));
+    broker.ProcessPush(bc::protocol::Frame::CreatePush(aliceId, {0x22}));
+
+    broker.ProcessPush(bc::protocol::Frame::CreatePush(aliceId, {0x33}));
+
+    auto res1 = broker.ProcessPoll(aliceId);
+    ASSERT_TRUE(res1.has_value());
+    EXPECT_EQ(res1.value().GetPayload(), (bc::protocol::Payload{0x11}));
+
+    auto res2 = broker.ProcessPoll(aliceId);
+    ASSERT_TRUE(res2.has_value());
+    EXPECT_EQ(res2.value().GetPayload(), (bc::protocol::Payload{0x22}));
+
+    EXPECT_FALSE(broker.ProcessPoll(aliceId).has_value());
 }
 
 } // namespace bc::domain::server

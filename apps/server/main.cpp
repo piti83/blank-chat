@@ -13,7 +13,6 @@
 auto InitializeConfig() -> std::optional<bc::domain::server::ServerConfig>
 {
     std::filesystem::path configPath = "/etc/blank-chat/server_config.toml";
-
     bc::domain::server::ServerConfig config;
 
     if (auto hasVal = bc::domain::server::LoadConfig(configPath)) {
@@ -59,11 +58,11 @@ auto main() -> int
     BC_INFO("Successfully mounted Ephemeral Hidden Service: {}.onion", *onionAddressOpt);
     BC_INFO("Distribute this address to your clients Out-Of-Band.");
 
-    bc::domain::server::MessageBroker messageBroker;
+    bc::domain::server::MessageBroker messageBroker(config->securityConfig.maxMessagesPerMailbox);
+
     bc::network::TcpServer tcpServer(ioContext, config->networkConfig.listenPort, messageBroker);
-
     tcpServer.Start();
-    ioContext.run();
 
+    ioContext.run();
     return 0;
 }

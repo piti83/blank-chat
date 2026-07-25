@@ -14,7 +14,7 @@ namespace bc::domain::server {
 class MessageBroker : public bc::protocol::IFrameHandler
 {
 public:
-    MessageBroker() = default;
+    explicit MessageBroker(std::uint32_t maxMessagesPerMailbox);
     ~MessageBroker() override = default;
 
     MessageBroker(const MessageBroker&) = delete;
@@ -29,6 +29,7 @@ public:
 
 private:
     std::unordered_map<bc::protocol::MailboxID, std::queue<bc::protocol::Frame>> queues;
+    std::uint32_t maxMessages;
 };
 
 } // namespace bc::domain::server

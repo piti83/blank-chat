@@ -43,9 +43,10 @@ namespace bc::cli {
 Repl::Repl(bc::domain::client::AddressBook& addressBook,
            bc::domain::client::ConversationCache& cache, const bc::crypto::IdentityKey& identity,
            std::string_view torHost, std::uint16_t torPort, std::string relayAddress,
-           std::uint16_t relayPort)
+           std::uint16_t relayPort, bc::domain::client::ObfuscationConfig obfuscationConfig)
     : client(ioContext, torHost, torPort), addressBook(addressBook), cache(cache),
-      identity(identity), relayAddress(std::move(relayAddress)), relayPort(relayPort)
+      identity(identity), relayAddress(std::move(relayAddress)), relayPort(relayPort),
+      obfuscationConfig(std::move(obfuscationConfig))
 {
 }
 
@@ -89,17 +90,22 @@ Repl::~Repl()
 auto Repl::HandleConnect() -> void
 {
     std::cout << "Connecting via Tor proxy...\n";
+
     if (client.Connect(relayAddress, relayPort)) {
         std::cout << "Successfully connected.\n";
         contactAliases = addressBook.GetAllAliases();
 
+        if (obfuscationConfig.mode == "poisson") {
+            BC_WARN(
+                "Poisson obfuscation is configured but not yet implemented. Falling back to CBR.");
+        }
+
         client.StartAsyncEngine(
             [this]() -> bc::protocol::Frame { return GetNextFrameForCBR(); },
             [this](bc::protocol::Frame&& frame) -> void { OnFrameReceived(std::move(frame)); },
-            std::chrono::milliseconds(bc::network::defaultCbrIntervalMs));
+            std::chrono::milliseconds(obfuscationConfig.cbr_interval_ms)); // Simple and unchanged
 
         ioContext.restart();
-
         asioThread = std::thread([this]() -> void {
             auto workGuard = boost::asio::make_work_guard(ioContext);
             ioContext.run();
