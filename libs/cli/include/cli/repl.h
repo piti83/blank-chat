@@ -24,21 +24,20 @@ public:
                   const bc::crypto::IdentityKey& identity, std::string_view torHost,
                   std::uint16_t torPort, std::string relayAddress, std::uint16_t relayPort);
 
-    ~Repl();
+    auto Run() -> void;
 
     Repl(const Repl&) = delete;
     auto operator=(const Repl&) -> Repl& = delete;
     Repl(Repl&&) = delete;
     auto operator=(Repl&&) -> Repl& = delete;
 
-    auto Run() -> void;
+    ~Repl();
 
 private:
     auto HandleConnect() -> void;
     auto HandleSend() -> void;
     auto HandleHistory() -> void;
     auto HandleList() -> void;
-
     auto HandleMyKey() -> void;
     auto HandleAddContact() -> void;
 

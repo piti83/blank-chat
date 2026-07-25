@@ -5,14 +5,10 @@
 
 #include <boost/asio.hpp>
 
+#include <network/network_types.h>
 #include <protocol/i_frame_handler.h>
 
 namespace bc::network {
-
-using TcpAcceptor = boost::asio::ip::tcp::acceptor;
-using Socket = boost::asio::ip::tcp::socket;
-using IOContext = boost::asio::io_context;
-using Endpoint = boost::asio::ip::tcp::endpoint;
 
 class TcpServer
 {

@@ -1,5 +1,3 @@
-#include "network/tcp_session.h"
-
 #include <cstddef>
 #include <utility>
 
@@ -7,7 +5,9 @@
 #include <sodium.h>
 
 #include <core/logger.h>
-#include <protocol/action_type.h>
+#include <protocol/protocol_types.h>
+
+#include "network/tcp_session.h"
 
 namespace bc::network {
 
@@ -57,27 +57,6 @@ auto TcpSession::DoRead() -> void
         });
 }
 
-auto TcpSession::ProcessExtractedFrame() -> void
-{
-    while (auto frameOpt = parser.TryExtractFrame()) {
-        auto& frame = *frameOpt;
-
-        if (frame.GetActionType() == bc::protocol::ActionType::PUSH ||
-            frame.GetActionType() == bc::protocol::ActionType::ACK) {
-            BC_TRACE("Received PUSH/ACK frame, injecting into handler.");
-            handler.ProcessPush(std::move(frame));
-        } else if (frame.GetActionType() == bc::protocol::ActionType::POLL) {
-            BC_TRACE("Received POLL frame, checking handler for messages.");
-            auto responseOpt = handler.ProcessPoll(frame.GetMailboxID());
-
-            if (responseOpt.has_value()) {
-                BC_TRACE("Message found for POLL, sending response.");
-                DoWrite(std::move(*responseOpt).Serialize());
-            }
-        }
-    }
-}
-
 auto TcpSession::DoWrite(bc::protocol::RawFrame frameData) -> void
 {
     writeQueue.push(std::move(frameData));
@@ -113,6 +92,27 @@ auto TcpSession::ProcessWriteQueue() -> void
 
                                  ProcessWriteQueue();
                              });
+}
+
+auto TcpSession::ProcessExtractedFrame() -> void
+{
+    while (auto frameOpt = parser.TryExtractFrame()) {
+        auto& frame = *frameOpt;
+
+        if (frame.GetActionType() == bc::protocol::ActionType::PUSH ||
+            frame.GetActionType() == bc::protocol::ActionType::ACK) {
+            BC_TRACE("Received PUSH/ACK frame, injecting into handler.");
+            handler.ProcessPush(std::move(frame));
+        } else if (frame.GetActionType() == bc::protocol::ActionType::POLL) {
+            BC_TRACE("Received POLL frame, checking handler for messages.");
+            auto responseOpt = handler.ProcessPoll(frame.GetMailboxID());
+
+            if (responseOpt.has_value()) {
+                BC_TRACE("Message found for POLL, sending response.");
+                DoWrite(std::move(*responseOpt).Serialize());
+            }
+        }
+    }
 }
 
 } // namespace bc::network

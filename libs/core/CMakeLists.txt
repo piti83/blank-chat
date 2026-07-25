@@ -4,7 +4,6 @@ add_library(core STATIC
     src/secure_buffer.cpp
     src/secure_string.cpp
     src/string_utils.cpp
-    src/terminal.cpp
 )
 
 set_project_warnings(core)

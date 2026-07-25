@@ -5,8 +5,7 @@
 #include <numeric>
 
 #include <protocol/mailbox_id.h>
-
-// TODO: Consider different hashing or corectness of this one
+#include <protocol/protocol_types.h>
 
 namespace std {
 

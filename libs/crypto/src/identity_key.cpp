@@ -1,13 +1,8 @@
-#include "crypto/identity_key.h"
-
 #include <sodium.h>
 
-namespace bc::crypto {
+#include "crypto/identity_key.h"
 
-IdentityKey::IdentityKey(PublicKeyType pk, bc::core::SecureBuffer sk)
-    : publicKey(pk), secretKey(std::move(sk))
-{
-}
+namespace bc::crypto {
 
 auto IdentityKey::Generate() -> IdentityKey
 {
@@ -58,6 +53,11 @@ auto IdentityKey::GetCurve25519SecretKey() const noexcept -> std::optional<bc::c
     }
 
     return x25519Sk;
+}
+
+IdentityKey::IdentityKey(PublicKeyType pk, bc::core::SecureBuffer sk)
+    : publicKey(pk), secretKey(std::move(sk))
+{
 }
 
 } // namespace bc::crypto

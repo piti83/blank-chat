@@ -1,5 +1,3 @@
-#include "network/tcp_client.h"
-
 #include <algorithm>
 #include <array>
 #include <iterator>
@@ -10,19 +8,17 @@
 
 #include <core/logger.h>
 
+#include "network/tcp_client.h"
+
 namespace bc::network {
 
-namespace detail {
+namespace {
 
 [[nodiscard]] auto PerformTorHandshake(boost::asio::ip::tcp::socket& socket,
                                        std::string_view onionAddress, std::uint16_t destPort)
     -> bool
 {
     boost::system::error_code errorCode;
-
-    constexpr std::uint8_t socks5Version = 0x05;
-    constexpr std::uint8_t socks5AuthMethodsCount = 0x01;
-    constexpr std::uint8_t socks5AuthNone = 0x00;
 
     std::array<std::uint8_t, 3> greeting = {socks5Version, socks5AuthMethodsCount, socks5AuthNone};
     boost::asio::write(socket, boost::asio::buffer(greeting), errorCode);
@@ -38,16 +34,10 @@ namespace detail {
         return false;
     }
 
-    constexpr std::size_t maxDomainLength = 255;
     if (onionAddress.length() > maxDomainLength) {
         BC_ERROR("Onion address is too long for SOCKS5h protocol.");
         return false;
     }
-
-    constexpr std::size_t reqBufferMaxSize = 262;
-    constexpr std::uint8_t socks5CmdConnect = 0x01;
-    constexpr std::uint8_t socks5Reserved = 0x00;
-    constexpr std::uint8_t socks5AtypDomain = 0x03;
 
     std::array<std::uint8_t, reqBufferMaxSize> connectReq{};
     connectReq.at(0) = socks5Version;
@@ -56,14 +46,9 @@ namespace detail {
     connectReq.at(3) = socks5AtypDomain;
     connectReq.at(4) = static_cast<std::uint8_t>(onionAddress.length());
 
-    constexpr std::size_t domainOffset = 5;
     std::ranges::copy(onionAddress, std::next(connectReq.begin(), domainOffset));
 
-    constexpr std::size_t portByteSize = 2;
     const std::size_t portOffset = domainOffset + onionAddress.length();
-
-    constexpr std::uint8_t byteShift = 8;
-    constexpr std::uint16_t byteMask = 0xFF;
 
     connectReq.at(portOffset) = static_cast<std::uint8_t>((destPort >> byteShift) & byteMask);
     connectReq.at(portOffset + 1) = static_cast<std::uint8_t>(destPort & byteMask);
@@ -74,7 +59,6 @@ namespace detail {
         return false;
     }
 
-    constexpr std::size_t respHeaderSize = 4;
     std::array<std::uint8_t, respHeaderSize> connectRespHeader{};
     boost::asio::read(socket, boost::asio::buffer(connectRespHeader), errorCode);
     if (errorCode || connectRespHeader.at(0) != socks5Version) {
@@ -82,7 +66,6 @@ namespace detail {
         return false;
     }
 
-    constexpr std::uint8_t socks5RepSuccess = 0x00;
     if (connectRespHeader.at(1) != socks5RepSuccess) {
         BC_WARN("Tor failed to build circuit. SOCKS5 REP code: 0x{:02x}", connectRespHeader.at(1));
         return false;
@@ -90,11 +73,6 @@ namespace detail {
 
     auto atyp = connectRespHeader.at(3);
     std::size_t remainingBytes = 0;
-
-    constexpr std::uint8_t socks5AtypIpv4 = 0x01;
-    constexpr std::uint8_t socks5AtypIpv6 = 0x04;
-    constexpr std::size_t ipv4AddrPortSize = 6;
-    constexpr std::size_t ipv6AddrPortSize = 18;
 
     if (atyp == socks5AtypIpv4) {
         remainingBytes = ipv4AddrPortSize;
@@ -111,25 +89,19 @@ namespace detail {
         return false;
     }
 
-    constexpr std::size_t dropBufferSize = 256;
     std::array<std::uint8_t, dropBufferSize> dropBuffer{};
     boost::asio::read(socket, boost::asio::buffer(dropBuffer.data(), remainingBytes), errorCode);
 
     return !static_cast<bool>(errorCode);
 }
 
-} // namespace detail
+} // namespace
 
 TcpClient::TcpClient(boost::asio::io_context& ioContext, std::string_view torHost,
                      std::uint16_t torPort)
     : socket(ioContext), torHost(torHost), torPort(torPort), cbrTimer(ioContext),
       readBuffer(readBufferSize)
 {
-}
-
-TcpClient::~TcpClient() noexcept
-{
-    Disconnect();
 }
 
 auto TcpClient::Connect(std::string_view onionAddress, std::uint16_t destPort) -> bool
@@ -149,7 +121,7 @@ auto TcpClient::Connect(std::string_view onionAddress, std::uint16_t destPort) -
 
     BC_INFO("Connected to Tor proxy. Negotiating SOCKS5h handshake for {}...", onionAddress);
 
-    if (!detail::PerformTorHandshake(socket, onionAddress, destPort)) {
+    if (!PerformTorHandshake(socket, onionAddress, destPort)) {
         BC_ERROR("Tor Handshake failed. Dropping connection.");
         Disconnect();
         return false;
@@ -188,6 +160,11 @@ auto TcpClient::StartAsyncEngine(FrameProvider provider, FrameReceiver receiver,
     });
 }
 
+TcpClient::~TcpClient() noexcept
+{
+    Disconnect();
+}
+
 auto TcpClient::DoCbrTick() -> void
 {
     cbrTimer.expires_at(cbrTimer.expiry() + cbrInterval);
@@ -200,32 +177,6 @@ auto TcpClient::DoCbrTick() -> void
     writeQueue.push(frame.Serialize());
 
     DoWrite();
-}
-
-auto TcpClient::DoWrite() -> void
-{
-    if (writeInProgress || writeQueue.empty()) {
-        return;
-    }
-
-    writeInProgress = true;
-
-    boost::asio::async_write(socket, boost::asio::buffer(writeQueue.front()),
-                             [this](boost::system::error_code ec, std::size_t /*length*/) -> void {
-                                 writeInProgress = false;
-
-                                 auto& buffer = writeQueue.front();
-                                 sodium_memzero(buffer.data(), buffer.size());
-                                 writeQueue.pop();
-
-                                 if (ec) {
-                                     BC_WARN("Network write error: {}. Socket might be dead.",
-                                             ec.message());
-                                     return;
-                                 }
-
-                                 DoWrite();
-                             });
 }
 
 auto TcpClient::DoRead() -> void
@@ -258,6 +209,32 @@ auto TcpClient::DoRead() -> void
                 DoRead();
             }
         });
+}
+
+auto TcpClient::DoWrite() -> void
+{
+    if (writeInProgress || writeQueue.empty()) {
+        return;
+    }
+
+    writeInProgress = true;
+
+    boost::asio::async_write(socket, boost::asio::buffer(writeQueue.front()),
+                             [this](boost::system::error_code ec, std::size_t /*length*/) -> void {
+                                 writeInProgress = false;
+
+                                 auto& buffer = writeQueue.front();
+                                 sodium_memzero(buffer.data(), buffer.size());
+                                 writeQueue.pop();
+
+                                 if (ec) {
+                                     BC_WARN("Network write error: {}. Socket might be dead.",
+                                             ec.message());
+                                     return;
+                                 }
+
+                                 DoWrite();
+                             });
 }
 
 } // namespace bc::network

@@ -2,34 +2,22 @@
 #define BC_LIBS_NETWORK_INCLUDE_TCPCLIENT_H_
 
 #include <cstdint>
-#include <functional>
 #include <queue>
 #include <string>
 
 #include <boost/asio.hpp>
 
+#include <network/network_types.h>
 #include <protocol/frame.h>
 #include <protocol/frame_parser.h>
 
 namespace bc::network {
 
-static constexpr size_t defaultCbrInterval = 5000;
-
-using IOContext = boost::asio::io_context;
-using Socket = boost::asio::ip::tcp::socket;
-
 class TcpClient
 {
 public:
-    using FrameProvider = std::function<bc::protocol::Frame()>;
-    using FrameReceiver = std::function<void(bc::protocol::Frame&&)>;
-
-    static constexpr std::string_view defaultTorHost = "127.0.0.1";
-    static constexpr uint16_t defaultTorPort = 9050;
-
     explicit TcpClient(IOContext& ioContext, std::string_view torHost = defaultTorHost,
                        std::uint16_t torPort = defaultTorPort);
-    ~TcpClient() noexcept;
 
     TcpClient(const TcpClient&) = delete;
     auto operator=(const TcpClient&) -> TcpClient& = delete;
@@ -43,6 +31,8 @@ public:
     auto StartAsyncEngine(FrameProvider provider, FrameReceiver receiver,
                           std::chrono::milliseconds cbrInterval) -> void;
 
+    ~TcpClient() noexcept;
+
 private:
     auto DoCbrTick() -> void;
     auto DoRead() -> void;
@@ -54,7 +44,7 @@ private:
     std::uint16_t torPort;
 
     boost::asio::steady_timer cbrTimer;
-    std::chrono::milliseconds cbrInterval{defaultCbrInterval};
+    std::chrono::milliseconds cbrInterval{defaultCbrIntervalMs};
 
     FrameProvider frameProvider;
     FrameReceiver frameReceiver;
@@ -62,7 +52,6 @@ private:
     std::queue<bc::protocol::RawFrame> writeQueue;
     bool writeInProgress{false};
 
-    static constexpr std::size_t readBufferSize = 4096;
     std::vector<std::uint8_t> readBuffer;
 };
 

@@ -1,16 +1,15 @@
-#include "core/secure_buffer.h"
-
 #include <utility>
 
 #include <sodium.h>
 
 #include <core/logger.h>
 
+#include "core/secure_buffer.h"
+
 namespace bc::core {
 
 SecureBuffer::SecureBuffer(std::size_t size)
-    : bufferSize(size),
-      bufferData(size > 0 ? static_cast<BufferType*>(sodium_malloc(size)) : nullptr)
+    : bufferSize(size), bufferData(size > 0 ? static_cast<CoreByte*>(sodium_malloc(size)) : nullptr)
 {
     if (size > 0 && bufferData == nullptr) {
         BC_CRITICAL("sodium_malloc failed to allocate secure memory for SecureBuffer!");
@@ -48,12 +47,12 @@ auto SecureBuffer::operator=(SecureBuffer&& other) noexcept -> SecureBuffer&
     return *this;
 }
 
-auto SecureBuffer::Data() noexcept -> BufferType*
+auto SecureBuffer::Data() noexcept -> CoreByte*
 {
     return bufferData;
 }
 
-auto SecureBuffer::Data() const noexcept -> const BufferType*
+auto SecureBuffer::Data() const noexcept -> const CoreByte*
 {
     return bufferData;
 }
@@ -68,12 +67,12 @@ auto SecureBuffer::IsEmpty() const noexcept -> bool
     return bufferSize == 0;
 }
 
-auto SecureBuffer::AsSpan() const noexcept -> std::span<const BufferType>
+auto SecureBuffer::AsSpan() const noexcept -> std::span<const CoreByte>
 {
     return {bufferData, bufferSize};
 }
 
-auto SecureBuffer::AsMutableSpan() noexcept -> std::span<BufferType>
+auto SecureBuffer::AsMutableSpan() noexcept -> std::span<CoreByte>
 {
     return {bufferData, bufferSize};
 }

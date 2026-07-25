@@ -6,7 +6,7 @@
 #include <span>
 
 #include <protocol/frame.h>
-#include <protocol/frame_parser_state.h>
+#include <protocol/protocol_types.h>
 
 namespace bc::protocol {
 
@@ -36,11 +36,6 @@ private:
     std::optional<ActionType> currentAction;
     std::optional<MailboxID> currentMailbox;
     PayloadLength expectedPayloadLength{0};
-
-    static constexpr std::size_t headerSize =
-        actionTypeSize + mailboxIdSize + sizeof(PayloadLength);
-
-    static constexpr PayloadLength maxPayloadSize = 1024 * 1024;
 };
 
 } // namespace bc::protocol

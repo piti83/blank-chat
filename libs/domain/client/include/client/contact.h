@@ -4,9 +4,10 @@
 #include <optional>
 #include <string>
 
-#include <client/public_key.h>
+#include <client/client_types.h>
 #include <core/secure_buffer.h>
 #include <protocol/mailbox_id.h>
+#include <protocol/protocol_types.h>
 
 namespace bc::domain::client {
 

@@ -6,6 +6,7 @@
 
 #include <client/contact.h>
 #include <core/string_hash.h>
+#include <crypto/identity_key.h>
 
 namespace bc::domain::client {
 

@@ -6,10 +6,9 @@
 #include <optional>
 #include <string>
 
-namespace bc::domain::server {
+#include <server/server_types.h>
 
-constexpr uint8_t defaultMemoryQuotaPercent = 80;
-constexpr uint32_t defaultMaxMessagesPerMailbox = 50;
+namespace bc::domain::server {
 
 struct NetworkConfig
 {
