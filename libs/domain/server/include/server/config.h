@@ -12,16 +12,16 @@ namespace bc::domain::server {
 
 struct NetworkConfig
 {
-    std::string listenHost{"127.0.0.1"};
+    std::string listenHost;
     std::uint16_t listenPort{0};
-    std::string torControlHost{"127.0.0.1"};
+    std::string torControlHost;
     std::uint16_t torControlPort{0};
 };
 
 struct SecurityConfig
 {
-    std::uint8_t memoryQuotaPercent{defaultMemoryQuotaPercent};
-    std::uint32_t maxMessagesPerMailbox{defaultMaxMessagesPerMailbox};
+    std::uint8_t memoryQuotaPercent{0};
+    std::uint32_t maxMessagesPerMailbox{0};
 };
 
 struct ServerConfig
