@@ -34,12 +34,18 @@ struct StorageConfig
     std::string contactsFilePath;
 };
 
+struct SecurityConfig
+{
+    std::uint32_t pfsMessageInterval{0};
+};
+
 struct ClientConfig
 {
     NetworkConfig networkConfig;
     RelayConfig relayConfig;
     ObfuscationConfig obfuscationConfig;
     StorageConfig storageConfig;
+    SecurityConfig securityConfig;
 };
 
 [[nodiscard]] auto LoadConfig(const std::filesystem::path& configFilePath)

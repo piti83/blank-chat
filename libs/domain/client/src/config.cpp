@@ -100,6 +100,21 @@ auto LoadStorageConfig(const toml::table& table, ClientConfig& config,
     return true;
 }
 
+auto LoadSecurityConfig(const toml::table& table, ClientConfig& config,
+                        [[maybe_unused]] const std::filesystem::path& path) -> bool
+{
+    // PFS Message Interval
+    if (auto opt = table.at_path("security.pfs_message_interval").value<std::uint32_t>()) {
+        config.securityConfig.pfsMessageInterval = *opt;
+    } else {
+        BC_ERROR("Missing or invalid [security][pfs_message_interval] in client config file: {}",
+                 path.string());
+        return false;
+    }
+
+    return true;
+}
+
 auto LoadConfig(const std::filesystem::path& configFilePath) -> std::optional<ClientConfig>
 {
     toml::parse_result result = toml::parse_file(configFilePath.string());
@@ -115,7 +130,8 @@ auto LoadConfig(const std::filesystem::path& configFilePath) -> std::optional<Cl
     if (!LoadNetworkConfig(table, config, configFilePath) ||
         !LoadRelayConfig(table, config, configFilePath) ||
         !LoadObfuscationConfig(table, config, configFilePath) ||
-        !LoadStorageConfig(table, config, configFilePath)) {
+        !LoadStorageConfig(table, config, configFilePath) ||
+        !LoadSecurityConfig(table, config, configFilePath)) {
         return std::nullopt;
     }
 

@@ -30,7 +30,8 @@ auto AddressBook::Initialize(const std::filesystem::path& pathToContactsFile,
                            .rxMailboxId = bc::protocol::MailboxID(derivedOpt->rxId),
                            .txMailboxId = bc::protocol::MailboxID(derivedOpt->txId),
                            .rxKey = std::move(derivedOpt->rxKey),
-                           .txKey = std::move(derivedOpt->txKey)};
+                           .txKey = std::move(derivedOpt->txKey),
+                           .pendingMessages = {}};
 
         contacts.insert_or_assign(c.alias, std::move(newContact));
     }
@@ -39,7 +40,7 @@ auto AddressBook::Initialize(const std::filesystem::path& pathToContactsFile,
 }
 
 auto AddressBook::AddContact(const std::string& alias, const PublicKeyType& publicKey,
-                             std::optional<std::string> note) -> bool
+                             const std::optional<std::string>& note) -> bool
 {
     if (!static_cast<bool>(identity)) {
         BC_ERROR("Cannot add contact: AddressBook is not initialized with IdentityKey.");
@@ -59,11 +60,12 @@ auto AddressBook::AddContact(const std::string& alias, const PublicKeyType& publ
 
     Contact newContact{.alias = alias,
                        .publicKey = publicKey,
-                       .note = std::move(note),
+                       .note = note,
                        .rxMailboxId = bc::protocol::MailboxID(derivedOpt->rxId),
                        .txMailboxId = bc::protocol::MailboxID(derivedOpt->txId),
                        .rxKey = std::move(derivedOpt->rxKey),
-                       .txKey = std::move(derivedOpt->txKey)};
+                       .txKey = std::move(derivedOpt->txKey),
+                       .pendingMessages = {}};
 
     contacts.insert_or_assign(alias, std::move(newContact));
     BC_INFO("Contact succesfully loaded and keys derived in RAM.");
@@ -97,6 +99,14 @@ auto AddressBook::GetAliasByRxMailboxId(const bc::protocol::MailboxID& rxId) con
         }
     }
     return "";
+}
+
+auto AddressBook::GetMutableContact(std::string_view alias) -> Contact*
+{
+    if (auto it = contacts.find(alias); it != contacts.end()) {
+        return &it->second;
+    }
+    return nullptr;
 }
 
 } // namespace bc::domain::client

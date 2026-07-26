@@ -34,7 +34,7 @@ protected:
     bc::domain::client::AddressBook testAddressBook;
     bc::domain::client::ConversationCache testCache;
 
-    bc::domain::client::ObfuscationConfig testObfConfig{"cbr", 5000, 5.0F};
+    bc::domain::client::ClientConfig testConfig{};
 
     void SetUp() override
     {
@@ -53,6 +53,13 @@ protected:
         acceptor = std::make_unique<boost::asio::ip::tcp::acceptor>(
             serverIo, boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), 0));
         serverPort = acceptor->local_endpoint().port();
+
+        testConfig.networkConfig.torSocksHost = "127.0.0.1";
+        testConfig.networkConfig.torSocksPort = serverPort;
+        testConfig.relayConfig.onionAddress = "test.onion";
+        testConfig.relayConfig.onionPort = 80;
+        testConfig.obfuscationConfig = {"cbr", 5000, 5.0F};
+        testConfig.securityConfig.pfsMessageInterval = 50;
 
         serverThread = std::thread([this]() {
             auto workGuard = boost::asio::make_work_guard(serverIo);
@@ -79,8 +86,7 @@ protected:
 
 TEST_F(ReplTest, RunLoop_ParsesBasicCommandsAndExits)
 {
-    Repl repl(testAddressBook, testCache, *testIdentity, "127.0.0.1", serverPort, "test.onion", 80,
-              testObfConfig);
+    Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
 
     auto mockContact = bc::crypto::IdentityKey::Generate();
     auto mnemonic = bc::crypto::bip39::Encode(mockContact.GetPublicKey());
@@ -101,8 +107,7 @@ TEST_F(ReplTest, RunLoop_ParsesBasicCommandsAndExits)
 
 TEST_F(ReplTest, HandleSend_StreamFailsSecurely)
 {
-    Repl repl(testAddressBook, testCache, *testIdentity, "127.0.0.1", serverPort, "test.onion", 80,
-              testObfConfig);
+    Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
     test_in.str("");
     repl.HandleSend();
     SUCCEED() << "Must abort gracefully when cin terminates early.";
@@ -110,8 +115,7 @@ TEST_F(ReplTest, HandleSend_StreamFailsSecurely)
 
 TEST_F(ReplTest, HandleSend_FailsOnUnknownContact)
 {
-    Repl repl(testAddressBook, testCache, *testIdentity, "127.0.0.1", serverPort, "test.onion", 80,
-              testObfConfig);
+    Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
     test_in << "ghost Target Data\n";
     repl.HandleSend();
     EXPECT_NE(test_out.str().find("not found in address book"), std::string::npos);
@@ -122,20 +126,18 @@ TEST_F(ReplTest, HandleSend_SucceedsAndQueuesFrame)
     auto peer = bc::crypto::IdentityKey::Generate();
     testAddressBook.AddContact("alice", peer.GetPublicKey(), std::nullopt);
 
-    Repl repl(testAddressBook, testCache, *testIdentity, "127.0.0.1", serverPort, "test.onion", 80,
-              testObfConfig);
+    Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
     test_in << "alice Highly Classified Data\n";
     repl.HandleSend();
 
-    EXPECT_NE(test_out.str().find("Message added to Outbox"), std::string::npos);
+    EXPECT_NE(test_out.str().find("Message queued for transmission"), std::string::npos);
     EXPECT_EQ(repl.outbox.size(), 1);
     EXPECT_EQ(repl.outbox.front().GetActionType(), bc::protocol::ActionType::PUSH);
 }
 
 TEST_F(ReplTest, HandleHistory_PopulatedAndEmpty)
 {
-    Repl repl(testAddressBook, testCache, *testIdentity, "127.0.0.1", serverPort, "test.onion", 80,
-              testObfConfig);
+    Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
 
     bc::domain::client::CacheEntry entry{.id = "hash123",
                                          .timestamp = 0,
@@ -155,8 +157,7 @@ TEST_F(ReplTest, HandleHistory_PopulatedAndEmpty)
 
 TEST_F(ReplTest, GetNextFrameForCBR_PopsFromOutbox)
 {
-    Repl repl(testAddressBook, testCache, *testIdentity, "127.0.0.1", serverPort, "test.onion", 80,
-              testObfConfig);
+    Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
 
     bc::protocol::MailboxID dummy;
     dummy.Fill(0x11);
@@ -170,8 +171,7 @@ TEST_F(ReplTest, GetNextFrameForCBR_PopsFromOutbox)
 
 TEST_F(ReplTest, GetNextFrameForCBR_NoContacts_ReturnsDummyPoll)
 {
-    Repl repl(testAddressBook, testCache, *testIdentity, "127.0.0.1", serverPort, "test.onion", 80,
-              testObfConfig);
+    Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
 
     auto frame = repl.GetNextFrameForCBR();
 
@@ -188,8 +188,7 @@ TEST_F(ReplTest, GetNextFrameForCBR_WithContacts_RotatesPolls)
     testAddressBook.AddContact("alice", peer1.GetPublicKey(), std::nullopt);
     testAddressBook.AddContact("bob", peer2.GetPublicKey(), std::nullopt);
 
-    Repl repl(testAddressBook, testCache, *testIdentity, "127.0.0.1", serverPort, "test.onion", 80,
-              testObfConfig);
+    Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
     repl.contactAliases = {"alice", "bob", "ghost"};
     repl.currentPollIndex = 0;
 
@@ -204,8 +203,7 @@ TEST_F(ReplTest, GetNextFrameForCBR_WithContacts_RotatesPolls)
 
 TEST_F(ReplTest, OnFrameReceived_Push_UnknownMailbox)
 {
-    Repl repl(testAddressBook, testCache, *testIdentity, "127.0.0.1", serverPort, "test.onion", 80,
-              testObfConfig);
+    Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
 
     bc::protocol::MailboxID dummy;
     dummy.Fill(0x99);
@@ -220,8 +218,7 @@ TEST_F(ReplTest, OnFrameReceived_Push_TamperedCiphertext)
     testAddressBook.AddContact("alice", peer.GetPublicKey(), std::nullopt);
     auto* contact = testAddressBook.GetContact("alice");
 
-    Repl repl(testAddressBook, testCache, *testIdentity, "127.0.0.1", serverPort, "test.onion", 80,
-              testObfConfig);
+    Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
     repl.OnFrameReceived(bc::protocol::Frame::CreatePush(contact->rxMailboxId, {0xBA, 0xAD}));
 
     EXPECT_NE(test_out.str().find("Malformed or tampered PUSH message dropped silently"),
@@ -234,8 +231,7 @@ TEST_F(ReplTest, OnFrameReceived_Push_ValidSendsAck)
     testAddressBook.AddContact("alice", peer.GetPublicKey(), std::nullopt);
     auto* contact = testAddressBook.GetContact("alice");
 
-    Repl repl(testAddressBook, testCache, *testIdentity, "127.0.0.1", serverPort, "test.onion", 80,
-              testObfConfig);
+    Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
 
     bc::protocol::Payload plaintext = {'O', 'K'};
     auto ciphertextOpt =
@@ -252,8 +248,7 @@ TEST_F(ReplTest, OnFrameReceived_Push_ValidSendsAck)
 
 TEST_F(ReplTest, OnFrameReceived_Ack_UnknownAndTampered)
 {
-    Repl repl(testAddressBook, testCache, *testIdentity, "127.0.0.1", serverPort, "test.onion", 80,
-              testObfConfig);
+    Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
 
     bc::protocol::MailboxID dummy;
     dummy.Fill(0x99);
@@ -275,8 +270,7 @@ TEST_F(ReplTest, OnFrameReceived_Ack_ValidUpdatesStatus)
     testAddressBook.AddContact("alice", peer.GetPublicKey(), std::nullopt);
     auto* contact = testAddressBook.GetContact("alice");
 
-    Repl repl(testAddressBook, testCache, *testIdentity, "127.0.0.1", serverPort, "test.onion", 80,
-              testObfConfig);
+    Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
 
     std::string msgId = "test_msg_id";
     bc::domain::client::CacheEntry entry{.id = msgId,
