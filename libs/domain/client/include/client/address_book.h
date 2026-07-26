@@ -36,6 +36,8 @@ public:
 
     auto GetMutableContact(std::string_view alias) -> Contact*;
 
+    auto SaveToDisk() const -> bool;
+
 private:
     std::unordered_map<std::string, Contact, bc::core::StringHash, std::equal_to<>> contacts;
     std::filesystem::path contactsFilePath;

@@ -3,6 +3,7 @@
 
 #include <optional>
 #include <string>
+#include <vector>
 
 #include <client/client_types.h>
 
@@ -13,6 +14,11 @@ struct RawContact
     std::string alias = "contact";
     PublicKeyType publicKey{};
     std::optional<std::string> note = std::nullopt;
+
+    std::optional<std::vector<std::uint8_t>> rxMailboxId = std::nullopt;
+    std::optional<std::vector<std::uint8_t>> txMailboxId = std::nullopt;
+    std::optional<std::vector<std::uint8_t>> rxKey = std::nullopt;
+    std::optional<std::vector<std::uint8_t>> txKey = std::nullopt;
 };
 
 } // namespace bc::domain::client

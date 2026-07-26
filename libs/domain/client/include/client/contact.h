@@ -33,7 +33,9 @@ struct Contact
     PfsState pfsState{PfsState::IDLE};
 
     std::optional<bc::crypto::EphemeralKey> pendingEphemeralKey{std::nullopt};
-    std::queue<bc::protocol::Payload> pendingMessages;
+
+    std::optional<bc::protocol::MailboxID> oldRxMailboxId{std::nullopt};
+    std::optional<bc::core::SecureBuffer> oldRxKey{std::nullopt};
 };
 
 } // namespace bc::domain::client

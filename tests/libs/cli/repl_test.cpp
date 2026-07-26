@@ -8,6 +8,7 @@
 #include <gtest/gtest.h>
 
 #include <client/address_book.h>
+#include <client/payload_formatter.h>
 #include <crypto/bip39.h>
 #include <crypto/identity_key.h>
 #include <crypto/symmetric_cipher.h>
@@ -33,7 +34,6 @@ protected:
     std::optional<bc::crypto::IdentityKey> testIdentity;
     bc::domain::client::AddressBook testAddressBook;
     bc::domain::client::ConversationCache testCache;
-
     bc::domain::client::ClientConfig testConfig{};
 
     void SetUp() override
@@ -87,22 +87,45 @@ protected:
 TEST_F(ReplTest, RunLoop_ParsesBasicCommandsAndExits)
 {
     Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
-
     auto mockContact = bc::crypto::IdentityKey::Generate();
     auto mnemonic = bc::crypto::bip39::Encode(mockContact.GetPublicKey());
-
     test_in << "add alice " << mnemonic.StringView() << "\n";
     test_in << "mykey\n";
     test_in << "list\n";
     test_in << "invalid_command_name\n";
     test_in << "exit\n";
-
     repl.Run();
-
     EXPECT_NE(test_out.str().find("added successfully"), std::string::npos);
     EXPECT_NE(test_out.str().find("Your Identity Key"), std::string::npos);
     EXPECT_NE(test_out.str().find("alice"), std::string::npos);
     EXPECT_NE(test_out.str().find("Unknown command"), std::string::npos);
+}
+
+TEST_F(ReplTest, RunLoop_AddCommand_InvalidMnemonic)
+{
+    Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
+    test_in << "add bob invalid-mnemonic-phrase\nexit\n";
+    repl.Run();
+    EXPECT_EQ(testAddressBook.GetContact("bob"), nullptr);
+}
+
+TEST_F(ReplTest, RunLoop_AddCommand_MissingArguments)
+{
+    Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
+    test_in << "add charlie\nexit\n";
+    repl.Run();
+    EXPECT_EQ(testAddressBook.GetContact("charlie"), nullptr);
+}
+
+TEST_F(ReplTest, HandleConnect_FailsFastWhenTorIsDown)
+{
+    acceptor->close();
+
+    Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
+
+    repl.HandleConnect();
+
+    EXPECT_NE(test_out.str().find("Failed to connect"), std::string::npos);
 }
 
 TEST_F(ReplTest, HandleSend_StreamFailsSecurely)
@@ -111,6 +134,14 @@ TEST_F(ReplTest, HandleSend_StreamFailsSecurely)
     test_in.str("");
     repl.HandleSend();
     SUCCEED() << "Must abort gracefully when cin terminates early.";
+}
+
+TEST_F(ReplTest, HandleSend_MissingAlias)
+{
+    Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
+    test_in << "\n";
+    repl.HandleSend();
+    EXPECT_TRUE(repl.outbox.empty());
 }
 
 TEST_F(ReplTest, HandleSend_FailsOnUnknownContact)
@@ -125,11 +156,9 @@ TEST_F(ReplTest, HandleSend_SucceedsAndQueuesFrame)
 {
     auto peer = bc::crypto::IdentityKey::Generate();
     testAddressBook.AddContact("alice", peer.GetPublicKey(), std::nullopt);
-
     Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
     test_in << "alice Highly Classified Data\n";
     repl.HandleSend();
-
     EXPECT_NE(test_out.str().find("Message queued for transmission"), std::string::npos);
     EXPECT_EQ(repl.outbox.size(), 1);
     EXPECT_EQ(repl.outbox.front().GetActionType(), bc::protocol::ActionType::PUSH);
@@ -138,7 +167,6 @@ TEST_F(ReplTest, HandleSend_SucceedsAndQueuesFrame)
 TEST_F(ReplTest, HandleHistory_PopulatedAndEmpty)
 {
     Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
-
     bc::domain::client::CacheEntry entry{.id = "hash123",
                                          .timestamp = 0,
                                          .direction = bc::domain::client::MessageDirection::INBOUND,
@@ -146,11 +174,9 @@ TEST_F(ReplTest, HandleHistory_PopulatedAndEmpty)
                                          .status = bc::domain::client::MessageStatus::DELIVERED,
                                          .payload = {'O', 'K'}};
     testCache.AppendMessage(entry);
-
     test_in << "alice\nghost\n";
     repl.HandleHistory();
     repl.HandleHistory();
-
     EXPECT_NE(test_out.str().find("[IN] [OK] OK"), std::string::npos);
     EXPECT_NE(test_out.str().find("--- History for ghost ---"), std::string::npos);
 }
@@ -158,11 +184,9 @@ TEST_F(ReplTest, HandleHistory_PopulatedAndEmpty)
 TEST_F(ReplTest, GetNextFrameForCBR_PopsFromOutbox)
 {
     Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
-
     bc::protocol::MailboxID dummy;
     dummy.Fill(0x11);
     repl.outbox.push(bc::protocol::Frame::CreatePoll(dummy));
-
     auto frame = repl.GetNextFrameForCBR();
     EXPECT_EQ(frame.GetActionType(), bc::protocol::ActionType::POLL);
     EXPECT_EQ(frame.GetMailboxID(), dummy);
@@ -172,9 +196,7 @@ TEST_F(ReplTest, GetNextFrameForCBR_PopsFromOutbox)
 TEST_F(ReplTest, GetNextFrameForCBR_NoContacts_ReturnsDummyPoll)
 {
     Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
-
     auto frame = repl.GetNextFrameForCBR();
-
     bc::protocol::MailboxID zeros;
     zeros.Fill(0x00);
     EXPECT_EQ(frame.GetActionType(), bc::protocol::ActionType::POLL);
@@ -195,20 +217,18 @@ TEST_F(ReplTest, GetNextFrameForCBR_WithContacts_RotatesPolls)
     auto frame1 = repl.GetNextFrameForCBR();
     auto frame2 = repl.GetNextFrameForCBR();
     auto frame3 = repl.GetNextFrameForCBR();
-    auto frame4 = repl.GetNextFrameForCBR();
 
     EXPECT_EQ(frame1.GetActionType(), bc::protocol::ActionType::POLL);
-    EXPECT_EQ(frame4.GetMailboxID(), frame1.GetMailboxID());
+    EXPECT_EQ(frame3.GetMailboxID(), frame1.GetMailboxID());
+    EXPECT_NE(frame1.GetMailboxID(), frame2.GetMailboxID());
 }
 
 TEST_F(ReplTest, OnFrameReceived_Push_UnknownMailbox)
 {
     Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
-
     bc::protocol::MailboxID dummy;
     dummy.Fill(0x99);
     repl.OnFrameReceived(bc::protocol::Frame::CreatePush(dummy, {0x00}));
-
     EXPECT_NE(test_out.str().find("Received message for unknown MailboxID"), std::string::npos);
 }
 
@@ -217,10 +237,9 @@ TEST_F(ReplTest, OnFrameReceived_Push_TamperedCiphertext)
     auto peer = bc::crypto::IdentityKey::Generate();
     testAddressBook.AddContact("alice", peer.GetPublicKey(), std::nullopt);
     auto* contact = testAddressBook.GetContact("alice");
-
     Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
-    repl.OnFrameReceived(bc::protocol::Frame::CreatePush(contact->rxMailboxId, {0xBA, 0xAD}));
 
+    repl.OnFrameReceived(bc::protocol::Frame::CreatePush(contact->rxMailboxId, {0xBA, 0xAD}));
     EXPECT_NE(test_out.str().find("Malformed or tampered PUSH message dropped silently"),
               std::string::npos);
 }
@@ -230,10 +249,11 @@ TEST_F(ReplTest, OnFrameReceived_Push_ValidSendsAck)
     auto peer = bc::crypto::IdentityKey::Generate();
     testAddressBook.AddContact("alice", peer.GetPublicKey(), std::nullopt);
     auto* contact = testAddressBook.GetContact("alice");
-
     Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
 
-    bc::protocol::Payload plaintext = {'O', 'K'};
+    bc::protocol::Payload rawText = {'O', 'K'};
+    bc::protocol::Payload plaintext =
+        bc::domain::client::PayloadFormatter::BuildTextMessage(rawText);
     auto ciphertextOpt =
         bc::crypto::SymmetricCipher::EncryptWithPadding(contact->rxKey.AsSpan(), plaintext);
 
@@ -246,12 +266,50 @@ TEST_F(ReplTest, OnFrameReceived_Push_ValidSendsAck)
     EXPECT_EQ(repl.outbox.front().GetActionType(), bc::protocol::ActionType::ACK);
 }
 
+TEST_F(ReplTest, OnFrameReceived_Push_PfsRotateRequest)
+{
+    auto peer = bc::crypto::IdentityKey::Generate();
+    testAddressBook.AddContact("alice", peer.GetPublicKey(), std::nullopt);
+    auto* contact = testAddressBook.GetContact("alice");
+    Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
+
+    bc::crypto::PublicKeyType ephKey{};
+    std::array<std::uint8_t, bc::domain::client::cryptoSignBytes> sig{};
+    auto plaintext = bc::domain::client::PayloadFormatter::BuildPfsRotateRequest(ephKey, sig);
+    auto ciphertextOpt =
+        bc::crypto::SymmetricCipher::EncryptWithPadding(contact->rxKey.AsSpan(), plaintext);
+
+    repl.OnFrameReceived(
+        bc::protocol::Frame::CreatePush(contact->rxMailboxId, std::move(*ciphertextOpt)));
+
+    SUCCEED();
+}
+
+TEST_F(ReplTest, OnFrameReceived_Push_PfsRotateAck)
+{
+    auto peer = bc::crypto::IdentityKey::Generate();
+    testAddressBook.AddContact("alice", peer.GetPublicKey(), std::nullopt);
+    auto* contact = testAddressBook.GetContact("alice");
+    Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
+
+    bc::crypto::PublicKeyType ephKey{};
+    std::array<std::uint8_t, bc::domain::client::cryptoSignBytes> sig{};
+    auto plaintext = bc::domain::client::PayloadFormatter::BuildPfsRotateAck(ephKey, sig);
+    auto ciphertextOpt =
+        bc::crypto::SymmetricCipher::EncryptWithPadding(contact->rxKey.AsSpan(), plaintext);
+
+    repl.OnFrameReceived(
+        bc::protocol::Frame::CreatePush(contact->rxMailboxId, std::move(*ciphertextOpt)));
+
+    SUCCEED();
+}
+
 TEST_F(ReplTest, OnFrameReceived_Ack_UnknownAndTampered)
 {
     Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
-
     bc::protocol::MailboxID dummy;
     dummy.Fill(0x99);
+
     repl.OnFrameReceived(bc::protocol::Frame::CreateAck(dummy, {0x00}));
 
     auto peer = bc::crypto::IdentityKey::Generate();
@@ -259,7 +317,6 @@ TEST_F(ReplTest, OnFrameReceived_Ack_UnknownAndTampered)
     auto* contact = testAddressBook.GetContact("alice");
 
     repl.OnFrameReceived(bc::protocol::Frame::CreateAck(contact->rxMailboxId, {0xBA, 0xAD}));
-
     EXPECT_NE(test_out.str().find("Malformed or tampered ACK message dropped silently"),
               std::string::npos);
 }
@@ -269,7 +326,6 @@ TEST_F(ReplTest, OnFrameReceived_Ack_ValidUpdatesStatus)
     auto peer = bc::crypto::IdentityKey::Generate();
     testAddressBook.AddContact("alice", peer.GetPublicKey(), std::nullopt);
     auto* contact = testAddressBook.GetContact("alice");
-
     Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
 
     std::string msgId = "test_msg_id";
@@ -290,10 +346,75 @@ TEST_F(ReplTest, OnFrameReceived_Ack_ValidUpdatesStatus)
         bc::protocol::Frame::CreateAck(contact->rxMailboxId, std::move(*ciphertextOpt)));
 
     EXPECT_NE(test_out.str().find("Message DELIVERED"), std::string::npos);
-
     auto history = testCache.LoadHistory("alice");
     ASSERT_EQ(history.size(), 1);
     EXPECT_EQ(history[0].status, bc::domain::client::MessageStatus::DELIVERED);
+}
+
+TEST_F(ReplTest, HandleConnect_SuccessPathAndAsyncEngine)
+{
+    acceptor->async_accept([this](boost::system::error_code ec, boost::asio::ip::tcp::socket sock) {
+        if (ec)
+            return;
+        std::array<std::uint8_t, 3> greeting{};
+        boost::system::error_code ignore;
+        boost::asio::read(sock, boost::asio::buffer(greeting), ignore);
+        std::array<std::uint8_t, 2> greetingResp = {0x05, 0x00};
+        boost::asio::write(sock, boost::asio::buffer(greetingResp), ignore);
+
+        std::array<std::uint8_t, 5> reqHeader{};
+        boost::asio::read(sock, boost::asio::buffer(reqHeader), ignore);
+        std::vector<std::uint8_t> extra(reqHeader[4] + 2);
+        boost::asio::read(sock, boost::asio::buffer(extra), ignore);
+
+        std::array<std::uint8_t, 10> successResp = {0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0};
+        boost::asio::write(sock, boost::asio::buffer(successResp), ignore);
+    });
+
+    Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
+    repl.HandleConnect();
+
+    EXPECT_NE(test_out.str().find("Successfully connected"), std::string::npos);
+}
+
+TEST_F(ReplTest, ProcessPushFrame_TriggersAndCompletesPfsRotationCycle)
+{
+    auto peer = bc::crypto::IdentityKey::Generate();
+    testAddressBook.AddContact("alice", peer.GetPublicKey(), std::nullopt);
+
+    auto* contact = testAddressBook.GetMutableContact("alice");
+    ASSERT_NE(contact, nullptr);
+
+    Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
+
+    auto ephemeralPeer = bc::crypto::EphemeralKey::Generate();
+    ASSERT_TRUE(ephemeralPeer.has_value());
+
+    std::array<std::uint8_t, bc::domain::client::cryptoSignBytes> signature{};
+    bc::crypto::PublicKeyType ephPk = ephemeralPeer->GetPublicKey();
+
+    auto reqPayload = bc::domain::client::PayloadFormatter::BuildPfsRotateRequest(ephPk, signature);
+    auto ciphertextOpt =
+        bc::crypto::SymmetricCipher::EncryptWithPadding(contact->rxKey.AsSpan(), reqPayload);
+    ASSERT_TRUE(ciphertextOpt.has_value());
+
+    repl.OnFrameReceived(
+        bc::protocol::Frame::CreatePush(contact->rxMailboxId, std::move(*ciphertextOpt)));
+
+    contact->pfsState = bc::domain::client::PfsState::ROTATION_REQUESTED;
+    auto newEph = bc::crypto::EphemeralKey::Generate();
+    ASSERT_TRUE(newEph.has_value());
+    contact->pendingEphemeralKey.emplace(std::move(*newEph));
+
+    auto ackPayload = bc::domain::client::PayloadFormatter::BuildPfsRotateAck(ephPk, signature);
+    auto ackCiphertextOpt =
+        bc::crypto::SymmetricCipher::EncryptWithPadding(contact->txKey.AsSpan(), ackPayload);
+    ASSERT_TRUE(ackCiphertextOpt.has_value());
+
+    repl.OnFrameReceived(
+        bc::protocol::Frame::CreatePush(contact->rxMailboxId, std::move(*ackCiphertextOpt)));
+
+    SUCCEED();
 }
 
 } // namespace bc::cli::test

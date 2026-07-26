@@ -140,19 +140,12 @@ auto Repl::HandleSend() -> void
         .payload = rawPayload};
     cache.AppendMessage(entry);
 
-    if (contact->pfsState == bc::domain::client::PfsState::ROTATION_REQUESTED ||
-        contact->pfsState == bc::domain::client::PfsState::ROTATION_RESPONDING) {
-        std::cout << "Key rotation in progress. Message queued.\n";
-        contact->pendingMessages.push(std::move(rawPayload));
-        return;
-    }
-
+    // Wysyłamy żądanie rotacji W TLE, bez blokowania wiadomości!
     if (config.securityConfig.pfsMessageInterval > 0 &&
-        contact->messageCounter >= config.securityConfig.pfsMessageInterval) {
+        contact->messageCounter >= config.securityConfig.pfsMessageInterval &&
+        contact->pfsState == bc::domain::client::PfsState::IDLE) {
 
-        std::cout << "PFS threshold reached. Initiating key rotation...\n";
-
-        contact->pendingMessages.push(std::move(rawPayload));
+        PrintThreadSafe("PFS threshold reached. Initiating background key rotation...\n>>> ");
 
         auto ephemeralOpt = bc::crypto::EphemeralKey::Generate();
         if (!ephemeralOpt) {
@@ -165,32 +158,26 @@ auto Repl::HandleSend() -> void
                              ephemeralOpt->GetPublicKey().size(),
                              identity.GetSecretKeySpan().data());
 
-        auto formattedPayload = bc::domain::client::PayloadFormatter::BuildPfsRotateRequest(
+        auto reqPayload = bc::domain::client::PayloadFormatter::BuildPfsRotateRequest(
             ephemeralOpt->GetPublicKey(), signature);
 
-        auto ciphertextOpt = bc::crypto::SymmetricCipher::EncryptWithPadding(
-            contact->txKey.AsSpan(), formattedPayload);
-        sodium_memzero(formattedPayload.data(), formattedPayload.size());
+        auto ciphertextOpt =
+            bc::crypto::SymmetricCipher::EncryptWithPadding(contact->txKey.AsSpan(), reqPayload);
+        sodium_memzero(reqPayload.data(), reqPayload.size());
 
-        if (!ciphertextOpt) {
-            BC_ERROR("Encryption failed for PFS Request.");
-            return;
-        }
-
-        auto frame =
-            bc::protocol::Frame::CreatePush(contact->txMailboxId, std::move(*ciphertextOpt));
-        {
+        if (ciphertextOpt) {
+            auto frame =
+                bc::protocol::Frame::CreatePush(contact->txMailboxId, std::move(*ciphertextOpt));
             std::scoped_lock lock(outboxMutex);
             outbox.push(std::move(frame));
-        }
 
-        contact->pfsState = bc::domain::client::PfsState::ROTATION_REQUESTED;
-        contact->pendingEphemeralKey = std::move(*ephemeralOpt);
-        contact->messageCounter = 0;
-        PrintThreadSafe("Rotation request queued for transmission.\n");
-        return;
+            contact->pfsState = bc::domain::client::PfsState::ROTATION_REQUESTED;
+            contact->pendingEphemeralKey = std::move(*ephemeralOpt);
+            contact->messageCounter = 0; // Reset, by nie spamować żądaniami
+        }
     }
 
+    // Bez względu na rotację - normalnie zaszyfruj i wyślij właściwą wiadomość!
     contact->messageCounter++;
     auto formattedPayload = bc::domain::client::PayloadFormatter::BuildTextMessage(rawPayload);
     sodium_memzero(rawPayload.data(), rawPayload.size());
@@ -300,23 +287,24 @@ auto Repl::GetNextFrameForCBR() -> bc::protocol::Frame
         return frame;
     }
 
-    if (contactAliases.empty()) {
+    std::vector<bc::protocol::MailboxID> activeMailboxes;
+    for (const auto& alias : contactAliases) {
+        if (const auto* c = addressBook.GetContact(alias)) {
+            activeMailboxes.push_back(c->rxMailboxId);
+            if (c->oldRxMailboxId.has_value()) {
+                activeMailboxes.push_back(*c->oldRxMailboxId);
+            }
+        }
+    }
+
+    if (activeMailboxes.empty()) {
         bc::protocol::MailboxID dummyId;
         dummyId.Fill(0x00);
         return bc::protocol::Frame::CreatePoll(dummyId);
     }
 
-    const std::string& alias = contactAliases.at(currentPollIndex);
-    currentPollIndex = (currentPollIndex + 1) % contactAliases.size();
-
-    const auto* contact = addressBook.GetContact(alias);
-    if (contact != nullptr) {
-        return bc::protocol::Frame::CreatePoll(contact->rxMailboxId);
-    }
-
-    bc::protocol::MailboxID dummyId;
-    dummyId.Fill(0x00);
-    return bc::protocol::Frame::CreatePoll(dummyId);
+    currentPollIndex = (currentPollIndex + 1) % activeMailboxes.size();
+    return bc::protocol::Frame::CreatePoll(activeMailboxes.at(currentPollIndex));
 }
 
 auto Repl::OnFrameReceived(bc::protocol::Frame&& frame) -> void
@@ -335,47 +323,13 @@ auto Repl::OnFrameReceived(bc::protocol::Frame&& frame) -> void
     }
 
     auto actionType = frame.GetActionType();
+    bool usedOldKey = (contact->oldRxMailboxId.has_value() && rxId == *contact->oldRxMailboxId);
+    auto payload = std::move(frame).ExtractPayload();
 
     if (actionType == bc::protocol::ActionType::PUSH) {
-        auto payload = std::move(frame).ExtractPayload();
-        auto plaintextOpt =
-            bc::crypto::SymmetricCipher::DecryptAndUnpad(contact->rxKey.AsSpan(), payload);
-
-        if (!plaintextOpt) {
-            PrintThreadSafe("Malformed or tampered PUSH message dropped silently.\n");
-            return;
-        }
-
-        auto opcodeOpt = bc::domain::client::PayloadFormatter::ExtractOpcode(*plaintextOpt);
-        if (opcodeOpt) {
-            if (*opcodeOpt == bc::domain::client::PayloadOpcode::TEXT_MESSAGE) {
-                if (auto msgDataOpt =
-                        bc::domain::client::PayloadFormatter::ParseTextMessage(*plaintextOpt)) {
-                    HandleTextMessage(alias, contact, *plaintextOpt, *msgDataOpt);
-                }
-            } else if (*opcodeOpt == bc::domain::client::PayloadOpcode::PFS_ROTATE_REQUEST) {
-                HandlePfsRotateRequest(alias, contact, *plaintextOpt);
-            } else if (*opcodeOpt == bc::domain::client::PayloadOpcode::PFS_ROTATE_ACK) {
-                HandlePfsRotateAck(alias, contact, *plaintextOpt);
-            }
-        }
-
-        sodium_memzero(plaintextOpt->data(), plaintextOpt->size());
+        ProcessPushFrame(alias, contact, usedOldKey, payload);
     } else if (actionType == bc::protocol::ActionType::ACK) {
-        auto payload = std::move(frame).ExtractPayload();
-        auto plaintextOpt =
-            bc::crypto::SymmetricCipher::DecryptAndUnpad(contact->rxKey.AsSpan(), payload);
-
-        if (!plaintextOpt) {
-            PrintThreadSafe("Malformed or tampered ACK message dropped silently.\n");
-            return;
-        }
-
-        std::string msgId(plaintextOpt->begin(), plaintextOpt->end());
-        cache.UpdateMessageStatus(alias, msgId, bc::domain::client::MessageStatus::DELIVERED);
-        PrintThreadSafe(std::format("\n[System] Message DELIVERED to {}\n>>> ", alias));
-
-        sodium_memzero(plaintextOpt->data(), plaintextOpt->size());
+        ProcessAckFrame(alias, contact, usedOldKey, payload);
     }
 }
 
@@ -411,7 +365,7 @@ auto Repl::HandleTextMessage(std::string_view alias, const bc::domain::client::C
             bc::protocol::Frame::CreateAck(contact->txMailboxId, std::move(*ackCiphertextOpt));
         std::scoped_lock lock(outboxMutex);
         outbox.push(std::move(ackFrame));
-        PrintThreadSafe("[System] Encrypted ACK queued for transmission.\n>>> ");
+        PrintThreadSafe("Encrypted ACK queued for transmission.\n>>> ");
     }
 }
 
@@ -454,17 +408,57 @@ auto Repl::HandlePfsRotateRequest(std::string_view alias, bc::domain::client::Co
             outbox.push(std::move(frameAck));
         }
 
+        contact->oldRxMailboxId = contact->rxMailboxId;
+        bc::core::SecureBuffer oldKey(bc::crypto::symmetricKeySize);
+        std::ranges::copy(contact->rxKey.AsSpan(), oldKey.AsMutableSpan().begin());
+        contact->oldRxKey = std::move(oldKey);
+
         std::array<std::uint8_t, crypto_scalarmult_BYTES> sharedSecret{};
         if (crypto_scalarmult(sharedSecret.data(), myEphemeralOpt->GetSecretKeySpan().data(),
                               reqDataOpt->ephemeralPublicKey.data()) == 0) {
 
-            crypto_generichash(contact->rxKey.AsMutableSpan().data(), contact->rxKey.Size(),
-                               sharedSecret.data(), sharedSecret.size(), nullptr, 0);
-            crypto_generichash(contact->txKey.AsMutableSpan().data(), contact->txKey.Size(),
-                               sharedSecret.data(), sharedSecret.size(), nullptr, 0);
+            bc::core::SecureBuffer txExtended(bc::crypto::extendedHashSize);
+            bc::core::SecureBuffer rxExtended(bc::crypto::extendedHashSize);
+
+            crypto_generichash_state stateTx;
+            crypto_generichash_init(&stateTx, nullptr, 0, bc::crypto::extendedHashSize);
+            crypto_generichash_update(&stateTx, sharedSecret.data(), sharedSecret.size());
+            crypto_generichash_update(&stateTx, myEphemeralOpt->GetPublicKey().data(),
+                                      myEphemeralOpt->GetPublicKey().size());
+            crypto_generichash_update(&stateTx, reqDataOpt->ephemeralPublicKey.data(),
+                                      reqDataOpt->ephemeralPublicKey.size());
+            crypto_generichash_final(&stateTx, txExtended.AsMutableSpan().data(),
+                                     bc::crypto::extendedHashSize);
+
+            crypto_generichash_state stateRx;
+            crypto_generichash_init(&stateRx, nullptr, 0, bc::crypto::extendedHashSize);
+            crypto_generichash_update(&stateRx, sharedSecret.data(), sharedSecret.size());
+            crypto_generichash_update(&stateRx, reqDataOpt->ephemeralPublicKey.data(),
+                                      reqDataOpt->ephemeralPublicKey.size());
+            crypto_generichash_update(&stateRx, myEphemeralOpt->GetPublicKey().data(),
+                                      myEphemeralOpt->GetPublicKey().size());
+            crypto_generichash_final(&stateRx, rxExtended.AsMutableSpan().data(),
+                                     bc::crypto::extendedHashSize);
+
+            std::array<std::uint8_t, bc::protocol::mailboxIdSize> txArr{};
+            std::array<std::uint8_t, bc::protocol::mailboxIdSize> rxArr{};
+            std::copy_n(txExtended.AsSpan().begin(), bc::protocol::mailboxIdSize, txArr.begin());
+            std::copy_n(rxExtended.AsSpan().begin(), bc::protocol::mailboxIdSize, rxArr.begin());
+
+            contact->txMailboxId = bc::protocol::MailboxID(txArr);
+            contact->rxMailboxId = bc::protocol::MailboxID(rxArr);
+
+            std::copy_n(txExtended.AsSpan().begin() + bc::protocol::mailboxIdSize,
+                        bc::crypto::symmetricKeySize, contact->txKey.AsMutableSpan().begin());
+            std::copy_n(rxExtended.AsSpan().begin() + bc::protocol::mailboxIdSize,
+                        bc::crypto::symmetricKeySize, contact->rxKey.AsMutableSpan().begin());
 
             contact->messageCounter = 0;
-            PrintThreadSafe(std::format("[System] Key rotation completed with {}.\n>>> ", alias));
+            PrintThreadSafe(std::format("Key & Mailbox rotation completed with {}. Bob is "
+                                        "now listening on BOTH mailboxes.\n>>> ",
+                                        alias));
+
+            addressBook.SaveToDisk();
         }
         sodium_memzero(sharedSecret.data(), sharedSecret.size());
     }
@@ -496,40 +490,111 @@ auto Repl::HandlePfsRotateAck(std::string_view alias, bc::domain::client::Contac
                           contact->pendingEphemeralKey->GetSecretKeySpan().data(),
                           ackDataOpt->ephemeralPublicKey.data()) == 0) {
 
-        crypto_generichash(contact->rxKey.AsMutableSpan().data(), contact->rxKey.Size(),
-                           sharedSecret.data(), sharedSecret.size(), nullptr, 0);
-        crypto_generichash(contact->txKey.AsMutableSpan().data(), contact->txKey.Size(),
-                           sharedSecret.data(), sharedSecret.size(), nullptr, 0);
+        bc::core::SecureBuffer txExtended(bc::crypto::extendedHashSize);
+        bc::core::SecureBuffer rxExtended(bc::crypto::extendedHashSize);
+
+        crypto_generichash_state stateTx;
+        crypto_generichash_init(&stateTx, nullptr, 0, bc::crypto::extendedHashSize);
+        crypto_generichash_update(&stateTx, sharedSecret.data(), sharedSecret.size());
+        crypto_generichash_update(&stateTx, contact->pendingEphemeralKey->GetPublicKey().data(),
+                                  contact->pendingEphemeralKey->GetPublicKey().size());
+        crypto_generichash_update(&stateTx, ackDataOpt->ephemeralPublicKey.data(),
+                                  ackDataOpt->ephemeralPublicKey.size());
+        crypto_generichash_final(&stateTx, txExtended.AsMutableSpan().data(),
+                                 bc::crypto::extendedHashSize);
+
+        crypto_generichash_state stateRx;
+        crypto_generichash_init(&stateRx, nullptr, 0, bc::crypto::extendedHashSize);
+        crypto_generichash_update(&stateRx, sharedSecret.data(), sharedSecret.size());
+        crypto_generichash_update(&stateRx, ackDataOpt->ephemeralPublicKey.data(),
+                                  ackDataOpt->ephemeralPublicKey.size());
+        crypto_generichash_update(&stateRx, contact->pendingEphemeralKey->GetPublicKey().data(),
+                                  contact->pendingEphemeralKey->GetPublicKey().size());
+        crypto_generichash_final(&stateRx, rxExtended.AsMutableSpan().data(),
+                                 bc::crypto::extendedHashSize);
+
+        std::array<std::uint8_t, bc::protocol::mailboxIdSize> txArr{};
+        std::array<std::uint8_t, bc::protocol::mailboxIdSize> rxArr{};
+        std::copy_n(txExtended.AsSpan().begin(), bc::protocol::mailboxIdSize, txArr.begin());
+        std::copy_n(rxExtended.AsSpan().begin(), bc::protocol::mailboxIdSize, rxArr.begin());
+
+        contact->txMailboxId = bc::protocol::MailboxID(txArr);
+        contact->rxMailboxId = bc::protocol::MailboxID(rxArr);
+
+        std::copy_n(txExtended.AsSpan().begin() + bc::protocol::mailboxIdSize,
+                    bc::crypto::symmetricKeySize, contact->txKey.AsMutableSpan().begin());
+        std::copy_n(rxExtended.AsSpan().begin() + bc::protocol::mailboxIdSize,
+                    bc::crypto::symmetricKeySize, contact->rxKey.AsMutableSpan().begin());
 
         contact->pfsState = bc::domain::client::PfsState::IDLE;
         contact->pendingEphemeralKey = std::nullopt;
         contact->messageCounter = 0;
 
-        PrintThreadSafe(
-            std::format("[System] Key rotation completed with {}. Resuming queue...\n>>> ", alias));
+        PrintThreadSafe(std::format("\nKey & Mailbox rotation completed with {}. Seamless "
+                                    "transition successful!\n>>> ",
+                                    alias));
 
-        while (!contact->pendingMessages.empty()) {
-            auto pendingRaw = std::move(contact->pendingMessages.front());
-            contact->pendingMessages.pop();
-
-            auto pendingFormatted =
-                bc::domain::client::PayloadFormatter::BuildTextMessage(pendingRaw);
-            sodium_memzero(pendingRaw.data(), pendingRaw.size());
-
-            auto pendingCipherOpt = bc::crypto::SymmetricCipher::EncryptWithPadding(
-                contact->txKey.AsSpan(), pendingFormatted);
-            sodium_memzero(pendingFormatted.data(), pendingFormatted.size());
-
-            if (pendingCipherOpt) {
-                auto queuedFrame = bc::protocol::Frame::CreatePush(contact->txMailboxId,
-                                                                   std::move(*pendingCipherOpt));
-                std::scoped_lock lock(outboxMutex);
-                outbox.push(std::move(queuedFrame));
-                contact->messageCounter++;
-            }
-        }
+        addressBook.SaveToDisk();
     }
     sodium_memzero(sharedSecret.data(), sharedSecret.size());
+}
+
+auto Repl::ProcessPushFrame(std::string_view alias, bc::domain::client::Contact* contact,
+                            bool usedOldKey, const std::vector<std::uint8_t>& payload) -> void
+{
+    auto& keyToUse =
+        (usedOldKey && contact->oldRxKey.has_value()) ? contact->oldRxKey.value() : contact->rxKey;
+
+    auto plaintextOpt = bc::crypto::SymmetricCipher::DecryptAndUnpad(keyToUse.AsSpan(), payload);
+
+    if (!plaintextOpt) {
+        PrintThreadSafe("Malformed or tampered PUSH message dropped silently.\n");
+        return;
+    }
+
+    if (!usedOldKey && contact->oldRxMailboxId.has_value()) {
+        PrintThreadSafe(std::format(
+            "\nTransition confirmed for {}. Dropping old mailbox safely.\n>>> ", alias));
+        contact->oldRxMailboxId = std::nullopt;
+        contact->oldRxKey = std::nullopt;
+        addressBook.SaveToDisk();
+    }
+
+    auto opcodeOpt = bc::domain::client::PayloadFormatter::ExtractOpcode(*plaintextOpt);
+    if (opcodeOpt) {
+        if (*opcodeOpt == bc::domain::client::PayloadOpcode::TEXT_MESSAGE) {
+            if (auto msgDataOpt =
+                    bc::domain::client::PayloadFormatter::ParseTextMessage(*plaintextOpt)) {
+                HandleTextMessage(alias, contact, *plaintextOpt, *msgDataOpt);
+            }
+        } else if (*opcodeOpt == bc::domain::client::PayloadOpcode::PFS_ROTATE_REQUEST) {
+            HandlePfsRotateRequest(alias, contact, *plaintextOpt);
+        } else if (*opcodeOpt == bc::domain::client::PayloadOpcode::PFS_ROTATE_ACK) {
+            HandlePfsRotateAck(alias, contact, *plaintextOpt);
+        }
+    }
+
+    sodium_memzero(plaintextOpt->data(), plaintextOpt->size());
+}
+
+auto Repl::ProcessAckFrame(std::string_view alias, bc::domain::client::Contact* contact,
+                           bool usedOldKey, const std::vector<std::uint8_t>& payload) -> void
+{
+    auto& keyToUse =
+        (usedOldKey && contact->oldRxKey.has_value()) ? contact->oldRxKey.value() : contact->rxKey;
+
+    auto plaintextOpt = bc::crypto::SymmetricCipher::DecryptAndUnpad(keyToUse.AsSpan(), payload);
+
+    if (!plaintextOpt) {
+        PrintThreadSafe("Malformed or tampered ACK message dropped silently.\n");
+        return;
+    }
+
+    std::string msgId(plaintextOpt->begin(), plaintextOpt->end());
+    cache.UpdateMessageStatus(alias, msgId, bc::domain::client::MessageStatus::DELIVERED);
+    PrintThreadSafe(std::format("\nMessage DELIVERED to {}\n>>> ", alias));
+
+    sodium_memzero(plaintextOpt->data(), plaintextOpt->size());
 }
 
 } // namespace bc::cli

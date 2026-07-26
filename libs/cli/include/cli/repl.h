@@ -53,6 +53,11 @@ private:
     auto HandlePfsRotateAck(std::string_view alias, domain::client::Contact* contact,
                             const std::vector<std::uint8_t>& plaintext) -> void;
 
+    auto ProcessPushFrame(std::string_view alias, domain::client::Contact* contact, bool usedOldKey,
+                          const std::vector<std::uint8_t>& payload) -> void;
+    auto ProcessAckFrame(std::string_view alias, domain::client::Contact* contact, bool usedOldKey,
+                         const std::vector<std::uint8_t>& payload) -> void;
+
     std::thread asioThread;
 
     std::mutex outboxMutex;
