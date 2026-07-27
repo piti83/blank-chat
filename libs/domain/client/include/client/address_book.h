@@ -26,13 +26,17 @@ public:
                     const bc::crypto::IdentityKey& myIdentity) -> void;
 
     auto AddContact(const std::string& alias, const PublicKeyType& publicKey,
-                    std::optional<std::string> note) -> bool;
+                    const std::optional<std::string>& note) -> bool;
     auto GetContact(std::string_view alias) -> const Contact*;
 
     [[nodiscard]] auto GetAllAliases() const -> std::vector<std::string>;
 
     [[nodiscard]] auto GetAliasByRxMailboxId(const bc::protocol::MailboxID& rxId) const
         -> std::string;
+
+    auto GetMutableContact(std::string_view alias) -> Contact*;
+
+    auto SaveToDisk() const -> bool;
 
 private:
     std::unordered_map<std::string, Contact, bc::core::StringHash, std::equal_to<>> contacts;

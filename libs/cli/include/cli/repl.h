@@ -20,11 +20,9 @@ namespace bc::cli {
 class Repl
 {
 public:
-    explicit Repl(bc::domain::client::AddressBook& addressBook,
-                  bc::domain::client::ConversationCache& cache,
-                  const bc::crypto::IdentityKey& identity, std::string_view torHost,
-                  std::uint16_t torPort, std::string relayAddress, std::uint16_t relayPort,
-                  bc::domain::client::ObfuscationConfig obfuscationConfig);
+    Repl(bc::domain::client::AddressBook& addressBook, bc::domain::client::ConversationCache& cache,
+         const bc::crypto::IdentityKey& identity,
+         const bc::domain::client::ClientConfig& configParam);
 
     auto Run() -> void;
 
@@ -47,6 +45,19 @@ private:
     auto OnFrameReceived(bc::protocol::Frame&& frame) -> void;
     auto PrintThreadSafe(std::string_view msg) -> void;
 
+    auto HandleTextMessage(std::string_view alias, const domain::client::Contact* contact,
+                           const std::vector<std::uint8_t>& plaintext,
+                           std::span<const std::uint8_t> msgData) -> void;
+    auto HandlePfsRotateRequest(std::string_view alias, domain::client::Contact* contact,
+                                const std::vector<std::uint8_t>& plaintext) -> void;
+    auto HandlePfsRotateAck(std::string_view alias, domain::client::Contact* contact,
+                            const std::vector<std::uint8_t>& plaintext) -> void;
+
+    auto ProcessPushFrame(std::string_view alias, domain::client::Contact* contact, bool usedOldKey,
+                          const std::vector<std::uint8_t>& payload) -> void;
+    auto ProcessAckFrame(std::string_view alias, domain::client::Contact* contact, bool usedOldKey,
+                         const std::vector<std::uint8_t>& payload) -> void;
+
     std::thread asioThread;
 
     std::mutex outboxMutex;
@@ -63,10 +74,7 @@ private:
     bc::domain::client::ConversationCache& cache;
     const bc::crypto::IdentityKey& identity;
 
-    std::string relayAddress;
-    std::uint16_t relayPort;
-
-    bc::domain::client::ObfuscationConfig obfuscationConfig;
+    const bc::domain::client::ClientConfig& config;
 };
 
 } // namespace bc::cli

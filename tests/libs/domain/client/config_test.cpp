@@ -44,6 +44,9 @@ TEST_F(ClientConfigTest, SuccessfullyParsesValidConfiguration)
 
         [storage]
         contacts_file_path = "/secure/contacts.json"
+
+        [security]
+        pfs_message_interval = 50
     )");
 
     auto configOpt = LoadConfig(testConfigPath);
@@ -60,6 +63,7 @@ TEST_F(ClientConfigTest, SuccessfullyParsesValidConfiguration)
     EXPECT_FLOAT_EQ(configOpt->obfuscationConfig.poissonLambda, 3.14F);
 
     EXPECT_EQ(configOpt->storageConfig.contactsFilePath, "/secure/contacts.json");
+    EXPECT_EQ(configOpt->securityConfig.pfsMessageInterval, 50);
 }
 
 TEST_F(ClientConfigTest, FailsSecurelyOnMissingStorageConfig)

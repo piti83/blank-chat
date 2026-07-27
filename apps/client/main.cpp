@@ -85,9 +85,7 @@ auto main() -> int
     bc::domain::client::ConversationCache cache;
     cache.Initialize("msg_history");
 
-    bc::cli::Repl repl(addressBook, cache, *identity, config->networkConfig.torSocksHost,
-                       config->networkConfig.torSocksPort, config->relayConfig.onionAddress,
-                       config->relayConfig.onionPort, config->obfuscationConfig);
+    bc::cli::Repl repl(addressBook, cache, *identity, *config);
     repl.Run();
 
     return 0;
