@@ -140,7 +140,6 @@ auto Repl::HandleSend() -> void
         .payload = rawPayload};
     cache.AppendMessage(entry);
 
-    // Wysyłamy żądanie rotacji W TLE, bez blokowania wiadomości!
     if (config.securityConfig.pfsMessageInterval > 0 &&
         contact->messageCounter >= config.securityConfig.pfsMessageInterval &&
         contact->pfsState == bc::domain::client::PfsState::IDLE) {
@@ -173,11 +172,10 @@ auto Repl::HandleSend() -> void
 
             contact->pfsState = bc::domain::client::PfsState::ROTATION_REQUESTED;
             contact->pendingEphemeralKey = std::move(*ephemeralOpt);
-            contact->messageCounter = 0; // Reset, by nie spamować żądaniami
+            contact->messageCounter = 0;
         }
     }
 
-    // Bez względu na rotację - normalnie zaszyfruj i wyślij właściwą wiadomość!
     contact->messageCounter++;
     auto formattedPayload = bc::domain::client::PayloadFormatter::BuildTextMessage(rawPayload);
     sodium_memzero(rawPayload.data(), rawPayload.size());
@@ -346,7 +344,9 @@ auto Repl::HandleTextMessage(std::string_view alias, const bc::domain::client::C
     std::string msgStr(msgData.begin(), msgData.end());
     PrintThreadSafe(std::format("\n[+] New message from {}: {}\n>>> ", alias, msgStr));
 
-    std::string msgId = bc::core::HashPayload(plaintext);
+    std::vector<std::uint8_t> rawMessageData(msgData.begin(), msgData.end());
+    std::string msgId = bc::core::HashPayload(rawMessageData);
+
     bc::domain::client::CacheEntry entry{.id = msgId,
                                          .timestamp =
                                              static_cast<std::uint64_t>(std::time(nullptr)),
