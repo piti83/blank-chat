@@ -4,10 +4,9 @@ SUMMARY = "Bootable Server Image"
 
 IMAGE_FSTYPES += "wic"
 
-IMAGE_INSTALL += "packagegroup-base"
+IMAGE_INSTALL += "packagegroup-core-boot"
 
-IMAGE_FEATURES:remove = "read-only-rootfs"
-IMAGE_FEATURES += "allow-empty-password empty-root-password"
+IMAGE_FEATURES += "read-only-rootfs"
 
 IMAGE_INSTALL += " \
     blank-chat-server \
@@ -16,11 +15,9 @@ IMAGE_INSTALL += " \
 "
 
 IMAGE_INSTALL += " \
-    bash \
-    coreutils \
-    nano \
+    volatile-binds \
+    busybox \
     iproute2 \
-    net-tools \
     linux-firmware \
     tor \
     blankchat-tor-config-server \
@@ -37,3 +34,13 @@ TOOLCHAIN_TARGET_TASK:append = " \
     simdjson-staticdev \
     tomlplusplus-dev \
 "
+
+VOLATILE_BINDS:append = " /var/volatile/blank-chat /etc/blank-chat\n"
+
+mask_hibernation_services() {
+    ln -sf /dev/null ${IMAGE_ROOTFS}/etc/systemd/system/systemd-hibernate.service
+    ln -sf /dev/null ${IMAGE_ROOTFS}/etc/systemd/system/systemd-suspend.service
+    ln -sf /dev/null ${IMAGE_ROOTFS}/etc/systemd/system/systemd-hybrid-sleep.service
+}
+
+ROOTFS_POSTPROCESS_COMMAND += "mask_hibernation_services; "
