@@ -15,4 +15,4 @@ poisson_lambda = 5.0
 contacts_file_path = "contacts.json"
 
 [security]
-pfs_message_interval = 50;
+pfs_message_interval = 50

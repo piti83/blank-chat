@@ -35,8 +35,6 @@ TOOLCHAIN_TARGET_TASK:append = " \
     tomlplusplus-dev \
 "
 
-VOLATILE_BINDS:append = " /var/volatile/blank-chat /etc/blank-chat\n"
-
 mask_hibernation_services() {
     ln -sf /dev/null ${IMAGE_ROOTFS}/etc/systemd/system/systemd-hibernate.service
     ln -sf /dev/null ${IMAGE_ROOTFS}/etc/systemd/system/systemd-suspend.service
