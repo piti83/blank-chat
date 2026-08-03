@@ -1,4 +1,6 @@
 #include <filesystem>
+#include <format>
+#include <iostream>
 #include <optional>
 
 #include <boost/asio.hpp>
@@ -55,6 +57,7 @@ auto main() -> int
         return 1;
     }
 
+    std::cout << std::format("Hidden Service Address:\n{}\n", *onionAddressOpt);
     BC_INFO("Successfully mounted Ephemeral Hidden Service: {}.onion", *onionAddressOpt);
     BC_INFO("Distribute this address to your clients Out-Of-Band.");
 

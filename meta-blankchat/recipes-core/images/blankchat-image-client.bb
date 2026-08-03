@@ -4,10 +4,9 @@ SUMMARY = "Bootable Client Image"
 
 IMAGE_FSTYPES += "wic"
 
-IMAGE_INSTALL += "packagegroup-base"
+IMAGE_INSTALL += "packagegroup-core-boot"
 
 IMAGE_FEATURES:remove = "read-only-rootfs"
-IMAGE_FEATURES += "allow-empty-password empty-root-password"
 
 IMAGE_INSTALL += " \
     blank-chat-client \
@@ -17,11 +16,8 @@ IMAGE_INSTALL += " \
 "
 
 IMAGE_INSTALL += " \
-    bash \
-    coreutils \
-    nano \
+    busybox \
     iproute2 \
-    net-tools \
     linux-firmware \
     tor \
 "

@@ -42,6 +42,7 @@ def main():
     poky_dir = yocto_base / "poky"
     meta_oe_dir = yocto_base / "meta-openembedded"
     meta_tor_dir = yocto_base / "meta-tor"
+    meta_security_dir = yocto_base / "meta-security"
     build_dir = poky_dir / "build"
     meta_blankchat_dir = project_root / "meta-blankchat"
 
@@ -86,6 +87,19 @@ def main():
                 "-b",
                 "scarthgap",
                 str(meta_tor_dir),
+            ]
+        )
+
+    if not meta_security_dir.exists():
+        print_info("Cloning meta-security layer (scarthgap)...")
+        run_command(
+            [
+                "git",
+                "clone",
+                "https://git.yoctoproject.org/git/meta-security",
+                "-b",
+                "scarthgap",
+                str(meta_security_dir),
             ]
         )
 
@@ -150,6 +164,7 @@ def main():
             bitbake-layers add-layer {meta_oe_dir}/meta-python 2>/dev/null || true
             bitbake-layers add-layer {meta_oe_dir}/meta-networking 2>/dev/null || true
             bitbake-layers add-layer {meta_tor_dir} 2>/dev/null || true
+            bitbake-layers add-layer {meta_security_dir} 2>/dev/null || true
             bitbake-layers add-layer {meta_blankchat_dir} 2>/dev/null || true
 
             echo 'MACHINE = "genericx86-64"' > conf/auto.conf

@@ -1,7 +1,6 @@
 SUMMARY = "Tor configuration for Blank Chat Server"
 LICENSE = "MIT"
 LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/MIT;md5=0835ade698e0bcf8506ecda2f7b4f302"
-
 SRC_URI = "file://torrc-server"
 
 S = "${WORKDIR}"
@@ -9,9 +8,15 @@ S = "${WORKDIR}"
 do_install() {
     install -d ${D}${sysconfdir}/tor
     install -m 0644 ${WORKDIR}/torrc-server ${D}${sysconfdir}/tor/torrc.custom
+
+    install -d ${D}${sysconfdir}/tmpfiles.d
+    echo "d /var/volatile/tor 0700 tor tor - -" > ${D}${sysconfdir}/tmpfiles.d/tor-volatile.conf
 }
 
-FILES:${PN} = "${sysconfdir}/tor/torrc.custom"
+FILES:${PN} = " \
+    ${sysconfdir}/tor/torrc.custom \
+    ${sysconfdir}/tmpfiles.d/tor-volatile.conf \
+"
 
 pkg_postinst:${PN}() {
     #!/bin/sh
