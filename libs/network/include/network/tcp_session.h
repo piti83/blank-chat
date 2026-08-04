@@ -1,8 +1,10 @@
 #ifndef BC_LIBS_NETWORK_INCLUDE_TCPSESSION_H_
 #define BC_LIBS_NETWORK_INCLUDE_TCPSESSION_H_
 
+#include <cstdint>
 #include <memory>
 #include <queue>
+#include <vector>
 
 #include <boost/asio.hpp>
 
@@ -11,6 +13,8 @@
 #include <protocol/i_frame_handler.h>
 
 namespace bc::network {
+
+enum class SessionState : std::uint8_t { UNAUTHENTICATED, AUTHENTICATED };
 
 class TcpSession : public std::enable_shared_from_this<TcpSession>
 {
@@ -32,6 +36,7 @@ private:
     auto ProcessWriteQueue() -> void;
 
     auto ProcessExtractedFrame() -> void;
+    auto HandleAuthResponse(const bc::protocol::Frame& frame) -> bool;
 
     TcpSocket socket;
     bc::protocol::IFrameHandler& handler;
@@ -40,6 +45,9 @@ private:
 
     std::queue<bc::protocol::RawFrame> writeQueue;
     bool writeInProgress{false};
+
+    SessionState state{SessionState::UNAUTHENTICATED};
+    std::vector<std::uint8_t> currentChallenge;
 };
 
 } // namespace bc::network

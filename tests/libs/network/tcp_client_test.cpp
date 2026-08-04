@@ -12,6 +12,7 @@
 #include <boost/asio.hpp>
 #include <gtest/gtest.h>
 
+#include <core/string_utils.h>
 #include <network/tcp_client.h>
 #include <protocol/frame.h>
 #include <protocol/mailbox_id.h>
@@ -25,18 +26,15 @@ protected:
     std::unique_ptr<boost::asio::ip::tcp::acceptor> acceptor;
     std::uint16_t serverPort{0};
     std::thread serverThread;
-
     boost::asio::io_context clientIo;
     protocol::MailboxID defaultMailbox;
 
     void SetUp() override
     {
         defaultMailbox.Fill(0xAA);
-
         acceptor = std::make_unique<boost::asio::ip::tcp::acceptor>(
             serverIo, boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), 0));
         serverPort = acceptor->local_endpoint().port();
-
         serverThread = std::thread([this]() {
             auto workGuard = boost::asio::make_work_guard(serverIo);
             serverIo.run();
@@ -46,7 +44,6 @@ protected:
     void TearDown() override
     {
         serverIo.stop();
-
         if (serverThread.joinable()) {
             serverThread.join();
         }
@@ -56,7 +53,6 @@ protected:
         -> bool
     {
         boost::system::error_code ec;
-
         std::array<std::uint8_t, 3> greeting{};
         boost::asio::read(sock, boost::asio::buffer(greeting), ec);
         if (ec || greeting[0] != 0x05)
@@ -86,7 +82,23 @@ protected:
 
         std::array<std::uint8_t, 10> successResp = {0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0};
         boost::asio::write(sock, boost::asio::buffer(successResp), ec);
+        return !ec;
+    }
 
+    auto SimulateServerPoW(boost::asio::ip::tcp::socket& sock) -> bool
+    {
+        std::vector<std::uint8_t> challenge(32, 0xAA);
+        bc::protocol::MailboxID dummy;
+        dummy.Fill(0);
+        auto chalFrame = bc::protocol::Frame::CreateAuthChallenge(dummy, challenge);
+
+        boost::system::error_code ec;
+        boost::asio::write(sock, boost::asio::buffer(chalFrame.Serialize()), ec);
+        if (ec)
+            return false;
+
+        std::vector<std::uint8_t> respBuffer(29);
+        boost::asio::read(sock, boost::asio::buffer(respBuffer), ec);
         return !ec;
     }
 };
@@ -101,7 +113,6 @@ TEST_F(TcpClientTest, ConnectsSuccessfullyToValidEndpointThroughTor)
 
     TcpClient client(clientIo, "127.0.0.1", serverPort);
     bool result = client.Connect("test.onion", 80);
-
     EXPECT_TRUE(result);
 }
 
@@ -115,17 +126,14 @@ TEST_F(TcpClientTest, ConnectReturnsFalseWhenTorHandshakeFails)
 
     TcpClient client(clientIo, "127.0.0.1", serverPort);
     bool result = client.Connect("test.onion", 80);
-
     EXPECT_FALSE(result);
 }
 
 TEST_F(TcpClientTest, ConnectFailsGracefullyOnInvalidTorDaemonEndpoint)
 {
     acceptor->close();
-
     TcpClient client(clientIo, "127.0.0.1", serverPort);
     bool result = client.Connect("test.onion", 80);
-
     EXPECT_FALSE(result);
 }
 
@@ -162,8 +170,9 @@ TEST_F(TcpClientTest, AsyncEngineSuccessfullyTransmitsCBRFrames)
                                boost::system::error_code ec, boost::asio::ip::tcp::socket sock) {
         if (ec)
             return;
-
         if (!SimulateTorHandshakeSync(sock))
+            return;
+        if (!SimulateServerPoW(sock))
             return;
 
         auto sockPtr = std::make_shared<boost::asio::ip::tcp::socket>(std::move(sock));
@@ -191,17 +200,16 @@ TEST_F(TcpClientTest, AsyncEngineSuccessfullyTransmitsCBRFrames)
         providerCalls++;
         return protocol::Frame::CreatePoll(defaultMailbox);
     };
+
     auto receiver = [](protocol::Frame&& /*frame*/) {};
 
     client.StartAsyncEngine(provider, receiver, std::chrono::milliseconds(10));
-
     std::thread ioThread([&]() { clientIo.run(); });
 
     {
         std::unique_lock<std::mutex> lock(state->mutex);
         bool waitResult =
             state->cv.wait_for(lock, std::chrono::seconds(2), [&] { return state->ready; });
-
         ASSERT_TRUE(waitResult) << "Timeout waiting for server to receive async data";
         EXPECT_EQ(state->data, expectedSerialized);
     }
@@ -224,6 +232,8 @@ TEST_F(TcpClientTest, AsyncEngineSuccessfullyReceivesFrames)
                 return;
             if (!SimulateTorHandshakeSync(sock))
                 return;
+            if (!SimulateServerPoW(sock))
+                return;
 
             boost::asio::write(sock, boost::asio::buffer(serialized));
         });
@@ -238,6 +248,7 @@ TEST_F(TcpClientTest, AsyncEngineSuccessfullyReceivesFrames)
     auto provider = [&]() -> protocol::Frame {
         return protocol::Frame::CreatePoll(defaultMailbox);
     };
+
     auto receiver = [&](protocol::Frame&& frame) {
         if (!frameReceived.exchange(true)) {
             receivedPromise.set_value(std::move(frame));
@@ -270,6 +281,8 @@ TEST_F(TcpClientTest, AsyncEngineHandlesTcpFragmentationSafely)
                 return;
             if (!SimulateTorHandshakeSync(sock))
                 return;
+            if (!SimulateServerPoW(sock))
+                return;
 
             for (const auto& byte : serialized) {
                 boost::asio::write(sock, boost::asio::buffer(&byte, 1));
@@ -287,6 +300,7 @@ TEST_F(TcpClientTest, AsyncEngineHandlesTcpFragmentationSafely)
     auto provider = [&]() -> protocol::Frame {
         return protocol::Frame::CreatePoll(defaultMailbox);
     };
+
     auto receiver = [&](protocol::Frame&& frame) {
         if (!frameReceived.exchange(true)) {
             receivedPromise.set_value(std::move(frame));
@@ -314,6 +328,8 @@ TEST_F(TcpClientTest, AsyncEngineGracefullyHandlesServerDisconnect)
             return;
         if (!SimulateTorHandshakeSync(sock))
             return;
+        if (!SimulateServerPoW(sock))
+            return;
 
         boost::system::error_code ignoredEc;
         sock.close(ignoredEc);
@@ -325,6 +341,7 @@ TEST_F(TcpClientTest, AsyncEngineGracefullyHandlesServerDisconnect)
     auto provider = [&]() -> protocol::Frame {
         return protocol::Frame::CreatePoll(defaultMailbox);
     };
+
     auto receiver = [](protocol::Frame&& /*frame*/) {};
 
     client.StartAsyncEngine(provider, receiver, std::chrono::milliseconds(10));

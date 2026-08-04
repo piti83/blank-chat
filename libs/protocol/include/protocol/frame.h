@@ -31,6 +31,11 @@ public:
 
     [[nodiscard]] auto ExtractPayload() && noexcept -> Payload;
 
+    [[nodiscard]] static auto CreateAuthChallenge(const MailboxID& id, Payload challengeData)
+        -> Frame;
+    [[nodiscard]] static auto CreateAuthResponse(const MailboxID& id, Payload responseData)
+        -> Frame;
+
 private:
     Frame(ActionType action, const MailboxID& mailboxId, Payload&& payload);
 

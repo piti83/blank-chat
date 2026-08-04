@@ -179,7 +179,6 @@ TEST_F(ContactStorageTest, IgnoresMalformedHexInOptionalFields)
     ASSERT_EQ(contacts.size(), 1);
     EXPECT_EQ(contacts[0].alias, "partial_contact");
 
-    // Pola powinny pozostać puste (std::nullopt), bo parser hex zwrócił false
     EXPECT_FALSE(contacts[0].rxMailboxId.has_value());
     EXPECT_FALSE(contacts[0].txMailboxId.has_value());
     EXPECT_FALSE(contacts[0].rxKey.has_value());

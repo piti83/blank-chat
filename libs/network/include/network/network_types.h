@@ -46,6 +46,8 @@ static constexpr std::size_t dropBufferSize = 256;
 
 static constexpr std::size_t prefixLength = 14;
 
+static constexpr std::size_t challengSize = 32;
+
 using IOContext = boost::asio::io_context;
 using Socket = boost::asio::ip::tcp::socket;
 

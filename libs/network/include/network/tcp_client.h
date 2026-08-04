@@ -37,6 +37,7 @@ private:
     auto DoCbrTick() -> void;
     auto DoRead() -> void;
     auto DoWrite() -> void;
+    auto HandleAuthChallenge(const bc::protocol::Payload& challenge) -> void;
 
     Socket socket;
     bc::protocol::FrameParser parser;
@@ -53,6 +54,8 @@ private:
     bool writeInProgress{false};
 
     std::vector<std::uint8_t> readBuffer;
+
+    bool isAuthenticated{false};
 };
 
 } // namespace bc::network

@@ -8,21 +8,21 @@
 #include <boost/asio.hpp>
 #include <gtest/gtest.h>
 
+#include <core/string_utils.h>
 #include <network/tcp_server.h>
 #include <protocol/frame.h>
+#include <protocol/frame_parser.h>
 #include <protocol/i_frame_handler.h>
 #include <protocol/mailbox_id.h>
 
 namespace bc::network::test {
 
 namespace {
-
 class ServerMockFrameHandler : public bc::protocol::IFrameHandler
 {
 public:
     ServerMockFrameHandler() = default;
     ~ServerMockFrameHandler() override = default;
-
     ServerMockFrameHandler(const ServerMockFrameHandler&) = delete;
     auto operator=(const ServerMockFrameHandler&) -> ServerMockFrameHandler& = delete;
 
@@ -41,7 +41,6 @@ public:
 };
 
 std::atomic<std::uint16_t> testPortAllocator{40000};
-
 } // namespace
 
 class TcpServerTest : public ::testing::Test
@@ -61,14 +60,56 @@ protected:
         ioContext.restart();
         ioContext.run_for(duration);
     }
+
+    auto AuthenticateSimulatedClient(boost::asio::ip::tcp::socket& sock) -> bool
+    {
+        bc::protocol::FrameParser parser;
+        std::vector<std::uint8_t> rxBuffer(1024);
+        boost::system::error_code ec;
+        std::vector<std::uint8_t> challenge;
+
+        while (true) {
+            size_t bytes = sock.read_some(boost::asio::buffer(rxBuffer), ec);
+            if (ec)
+                return false;
+
+            parser.FeedBytes(std::span<const std::uint8_t>(rxBuffer.data(), bytes));
+            if (auto f = parser.TryExtractFrame()) {
+                if (f->GetActionType() == bc::protocol::ActionType::AUTH_CHALLENGE) {
+                    challenge = f->GetPayload();
+                    break;
+                }
+            }
+        }
+
+        std::uint64_t nonce = 0;
+        std::string hashHex;
+        std::vector<std::uint8_t> combined = challenge;
+        combined.resize(challenge.size() + sizeof(nonce));
+        do {
+            nonce++;
+            std::memcpy(combined.data() + challenge.size(), &nonce, sizeof(nonce));
+            hashHex = bc::core::HashPayload(combined);
+        } while (!hashHex.starts_with("000"));
+
+        std::vector<std::uint8_t> responsePayload(sizeof(nonce));
+        std::memcpy(responsePayload.data(), &nonce, sizeof(nonce));
+
+        bc::protocol::MailboxID dummy;
+        dummy.Fill(0);
+        auto resp = bc::protocol::Frame::CreateAuthResponse(dummy, responsePayload);
+
+        boost::asio::write(sock, boost::asio::buffer(resp.Serialize()), ec);
+        return !ec;
+    }
 };
 
 TEST_F(TcpServerTest, ConstructorThrowsWhenPortIsAlreadyBound)
 {
     boost::system::error_code ec;
     boost::asio::ip::tcp::endpoint endpoint(boost::asio::ip::tcp::v4(), currentTestPort);
-    boost::asio::ip::tcp::acceptor blocker(ioContext);
 
+    boost::asio::ip::tcp::acceptor blocker(ioContext);
     blocker.open(endpoint.protocol(), ec);
     ASSERT_FALSE(ec);
     blocker.bind(endpoint, ec);
@@ -90,6 +131,7 @@ TEST_F(TcpServerTest, GracefullyHandlesOperationAbortedOnDestruction)
     std::optional<TcpServer> server;
     server.emplace(ioContext, currentTestPort, mockHandler);
     server->Start();
+
     server.reset();
 
     PumpIoContext();
@@ -104,11 +146,9 @@ TEST_F(TcpServerTest, SurvivesImmediateClientDisconnectionLikePortScanners)
     for (int i = 0; i < 50; ++i) {
         boost::asio::ip::tcp::socket maliciousClient(ioContext);
         boost::system::error_code ec;
-
         maliciousClient.connect(boost::asio::ip::tcp::endpoint(
                                     boost::asio::ip::address_v4::loopback(), currentTestPort),
                                 ec);
-
         boost::asio::socket_base::linger option(true, 0);
         maliciousClient.set_option(option, ec);
         maliciousClient.close(ec);
@@ -136,16 +176,24 @@ TEST_F(TcpServerTest, AcceptsConnectionsAndProperlyRoutesDataToSessions)
         socket->connect(boost::asio::ip::tcp::endpoint(boost::asio::ip::address_v4::loopback(),
                                                        currentTestPort),
                         ec);
-
         ASSERT_FALSE(ec) << "Failed to connect client " << i;
+        clients.push_back(std::move(socket));
+    }
 
+    PumpIoContext(std::chrono::milliseconds(200));
+
+    for (int i = 0; i < clientsCount; ++i) {
+        ASSERT_TRUE(AuthenticateSimulatedClient(*clients[i]));
+    }
+
+    PumpIoContext(std::chrono::milliseconds(200));
+
+    for (int i = 0; i < clientsCount; ++i) {
+        boost::system::error_code ec;
         auto frame = bc::protocol::Frame::CreatePush(testMid, {static_cast<uint8_t>(i)});
         auto serialized = frame.Serialize();
-
-        boost::asio::write(*socket, boost::asio::buffer(serialized), ec);
+        boost::asio::write(*clients[i], boost::asio::buffer(serialized), ec);
         ASSERT_FALSE(ec);
-
-        clients.push_back(std::move(socket));
     }
 
     PumpIoContext(std::chrono::milliseconds(500));
