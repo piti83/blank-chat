@@ -1,0 +1,5 @@
+part /boot --source bootimg-efi --sourceparams="loader=grub-efi" --ondisk sda --label boot --active --align 1024 --use-uuid
+
+part / --source rootfs --ondisk sda --fstype=ext4 --label root --align 1024 --use-uuid
+
+bootloader --ptable gpt --timeout=2 --append="console=ttyS0,115200 console=tty0"
