@@ -9,10 +9,10 @@
 
 namespace bc::network {
 
-TcpServer::TcpServer(boost::asio::io_context& ioContext, std::uint16_t port,
-                     bc::protocol::IFrameHandler& handler)
+TcpServer::TcpServer(IOContext& ioContext, std::uint16_t port, bc::protocol::IFrameHandler& handler,
+                     std::uint8_t memoryQuotaPercent)
     : acceptor(ioContext, boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), port)),
-      handler(handler)
+      handler(handler), memoryMonitor(ioContext, memoryQuotaPercent)
 {
 }
 
@@ -35,6 +35,11 @@ auto TcpServer::HandleAccept(boost::system::error_code errorCode,
 {
     if (errorCode == boost::asio::error::operation_aborted ||
         errorCode == boost::asio::error::bad_descriptor) {
+        return;
+    }
+
+    if (memoryMonitor.IsQuotaExceeded()) {
+        DoAccept();
         return;
     }
 

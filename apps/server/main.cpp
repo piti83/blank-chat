@@ -63,7 +63,8 @@ auto main() -> int
 
     bc::domain::server::MessageBroker messageBroker(config->securityConfig.maxMessagesPerMailbox);
 
-    bc::network::TcpServer tcpServer(ioContext, config->networkConfig.listenPort, messageBroker);
+    bc::network::TcpServer tcpServer(ioContext, config->networkConfig.listenPort, messageBroker,
+                                     config->securityConfig.memoryQuotaPercent);
     tcpServer.Start();
 
     ioContext.run();

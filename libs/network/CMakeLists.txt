@@ -1,4 +1,5 @@
 add_library(network STATIC
+    src/memory_monitor.cpp
     src/tcp_client.cpp
     src/tcp_server.cpp
     src/tcp_session.cpp
