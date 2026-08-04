@@ -26,15 +26,18 @@ protected:
     std::unique_ptr<boost::asio::ip::tcp::acceptor> acceptor;
     std::uint16_t serverPort{0};
     std::thread serverThread;
+
     boost::asio::io_context clientIo;
     protocol::MailboxID defaultMailbox;
 
     void SetUp() override
     {
         defaultMailbox.Fill(0xAA);
+
         acceptor = std::make_unique<boost::asio::ip::tcp::acceptor>(
             serverIo, boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), 0));
         serverPort = acceptor->local_endpoint().port();
+
         serverThread = std::thread([this]() {
             auto workGuard = boost::asio::make_work_guard(serverIo);
             serverIo.run();
@@ -53,6 +56,7 @@ protected:
         -> bool
     {
         boost::system::error_code ec;
+
         std::array<std::uint8_t, 3> greeting{};
         boost::asio::read(sock, boost::asio::buffer(greeting), ec);
         if (ec || greeting[0] != 0x05)
@@ -200,7 +204,6 @@ TEST_F(TcpClientTest, AsyncEngineSuccessfullyTransmitsCBRFrames)
         providerCalls++;
         return protocol::Frame::CreatePoll(defaultMailbox);
     };
-
     auto receiver = [](protocol::Frame&& /*frame*/) {};
 
     client.StartAsyncEngine(provider, receiver, std::chrono::milliseconds(10));
@@ -214,9 +217,9 @@ TEST_F(TcpClientTest, AsyncEngineSuccessfullyTransmitsCBRFrames)
         EXPECT_EQ(state->data, expectedSerialized);
     }
 
-    client.Disconnect();
     clientIo.stop();
     ioThread.join();
+    client.Disconnect();
 
     EXPECT_GE(providerCalls.load(), 1);
 }
@@ -248,7 +251,6 @@ TEST_F(TcpClientTest, AsyncEngineSuccessfullyReceivesFrames)
     auto provider = [&]() -> protocol::Frame {
         return protocol::Frame::CreatePoll(defaultMailbox);
     };
-
     auto receiver = [&](protocol::Frame&& frame) {
         if (!frameReceived.exchange(true)) {
             receivedPromise.set_value(std::move(frame));
@@ -265,9 +267,9 @@ TEST_F(TcpClientTest, AsyncEngineSuccessfullyReceivesFrames)
     EXPECT_EQ(extracted.GetActionType(), protocol::ActionType::PUSH);
     EXPECT_EQ(extracted.GetPayload(), (protocol::Payload{0xFF, 0xEE}));
 
-    client.Disconnect();
     clientIo.stop();
     ioThread.join();
+    client.Disconnect();
 }
 
 TEST_F(TcpClientTest, AsyncEngineHandlesTcpFragmentationSafely)
@@ -300,7 +302,6 @@ TEST_F(TcpClientTest, AsyncEngineHandlesTcpFragmentationSafely)
     auto provider = [&]() -> protocol::Frame {
         return protocol::Frame::CreatePoll(defaultMailbox);
     };
-
     auto receiver = [&](protocol::Frame&& frame) {
         if (!frameReceived.exchange(true)) {
             receivedPromise.set_value(std::move(frame));
@@ -316,9 +317,9 @@ TEST_F(TcpClientTest, AsyncEngineHandlesTcpFragmentationSafely)
     auto extracted = future.get();
     EXPECT_EQ(extracted.GetActionType(), protocol::ActionType::POLL);
 
-    client.Disconnect();
     clientIo.stop();
     ioThread.join();
+    client.Disconnect();
 }
 
 TEST_F(TcpClientTest, AsyncEngineGracefullyHandlesServerDisconnect)
@@ -341,7 +342,6 @@ TEST_F(TcpClientTest, AsyncEngineGracefullyHandlesServerDisconnect)
     auto provider = [&]() -> protocol::Frame {
         return protocol::Frame::CreatePoll(defaultMailbox);
     };
-
     auto receiver = [](protocol::Frame&& /*frame*/) {};
 
     client.StartAsyncEngine(provider, receiver, std::chrono::milliseconds(10));
@@ -349,9 +349,9 @@ TEST_F(TcpClientTest, AsyncEngineGracefullyHandlesServerDisconnect)
 
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-    client.Disconnect();
     clientIo.stop();
     ioThread.join();
+    client.Disconnect();
 
     SUCCEED() << "Client gracefully handled unexpected EOF without exceptions or abortion.";
 }

@@ -244,7 +244,6 @@ auto TcpClient::DoWrite() -> void
 auto TcpClient::HandleAuthChallenge(const bc::protocol::Payload& challenge) -> void
 {
     std::uint64_t nonce = 0;
-    std::string hashHex;
     std::vector<std::uint8_t> combined = challenge;
     combined.resize(challenge.size() + sizeof(nonce));
 
@@ -254,7 +253,8 @@ auto TcpClient::HandleAuthChallenge(const bc::protocol::Payload& challenge) -> v
     while (true) {
         nonce++;
         std::memcpy(nonceDest.data(), &nonce, sizeof(nonce));
-        hashHex = bc::core::HashPayload(combined);
+
+        std::string hashHex = bc::core::HashPayload(combined);
         if (hashHex.starts_with("000")) {
             break;
         }
