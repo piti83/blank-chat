@@ -102,15 +102,22 @@ auto MemoryMonitor::CheckMemory() noexcept -> void
             std::uint64_t vmLckBytes = *vmLckKb * bytesInKb;
             bool exceeded = vmLckBytes >= memoryLimitBytes;
 
-            if (exceeded && !isQuotaExceeded.load(std::memory_order_relaxed)) {
-                BC_WARN("Locked memory ({} bytes) exceeded quota! Dropping new connections.",
-                        vmLckBytes);
-            } else if (!exceeded && isQuotaExceeded.load(std::memory_order_relaxed)) {
+            bool currentlyExceeded = isQuotaExceeded.load(std::memory_order_relaxed);
+
+            if (exceeded && !currentlyExceeded) {
+                BC_WARN(
+                    "CRITICAL: Locked memory ({} bytes) exceeded quota! Dropping new connections.",
+                    vmLckBytes);
+            }
+
+            if (!exceeded && currentlyExceeded) {
                 BC_INFO("Locked memory ({} bytes) dropped below quota. Accepting connections.",
                         vmLckBytes);
             }
 
-            isQuotaExceeded.store(exceeded, std::memory_order_relaxed);
+            if (exceeded != currentlyExceeded) {
+                isQuotaExceeded.store(exceeded, std::memory_order_relaxed);
+            };
         }
     }
 }
