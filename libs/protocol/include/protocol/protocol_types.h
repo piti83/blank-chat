@@ -15,7 +15,13 @@ constexpr std::uint8_t mailboxIdSize = 16;
 static constexpr std::size_t headerSize = actionTypeSize + mailboxIdSize + sizeof(PayloadLength);
 static constexpr PayloadLength maxPayloadSize = 1024 * 1024;
 
-enum class ActionType : std::uint8_t { PUSH = 0x01, POLL = 0x02, ACK = 0x03 };
+enum class ActionType : std::uint8_t {
+    PUSH = 0x01,
+    POLL = 0x02,
+    ACK = 0x03,
+    AUTH_CHALLENGE = 0x04,
+    AUTH_RESPONSE = 0x05
+};
 
 enum class ParserState : std::uint8_t {
     READING_HEADER,

@@ -9,6 +9,7 @@
 #include <sodium.h>
 
 #include <core/logger.h>
+#include <core/string_utils.h>
 
 namespace bc::network {
 
@@ -28,6 +29,7 @@ namespace {
 
     std::array<std::uint8_t, 2> greetingResponse{};
     boost::asio::read(socket, boost::asio::buffer(greetingResponse), errorCode);
+
     if (errorCode || greetingResponse.at(0) != socks5Version ||
         greetingResponse.at(1) != socks5AuthNone) {
         BC_ERROR("SOCKS5 greeting failed. Is local Tor daemon running and accepting NoAuth?");
@@ -49,7 +51,6 @@ namespace {
     std::ranges::copy(onionAddress, std::next(connectReq.begin(), domainOffset));
 
     const std::size_t portOffset = domainOffset + onionAddress.length();
-
     connectReq.at(portOffset) = static_cast<std::uint8_t>((destPort >> byteShift) & byteMask);
     connectReq.at(portOffset + 1) = static_cast<std::uint8_t>(destPort & byteMask);
 
@@ -61,6 +62,7 @@ namespace {
 
     std::array<std::uint8_t, respHeaderSize> connectRespHeader{};
     boost::asio::read(socket, boost::asio::buffer(connectRespHeader), errorCode);
+
     if (errorCode || connectRespHeader.at(0) != socks5Version) {
         BC_ERROR("Invalid SOCKS5 response header.");
         return false;
@@ -107,12 +109,10 @@ TcpClient::TcpClient(boost::asio::io_context& ioContext, std::string_view torHos
 auto TcpClient::Connect(std::string_view onionAddress, std::uint16_t destPort) -> bool
 {
     boost::asio::ip::tcp::resolver resolver(socket.get_executor());
-
     auto endpoints = resolver.resolve(torHost, std::to_string(torPort));
-
     boost::system::error_code errorCode;
-    boost::asio::connect(socket, endpoints, errorCode);
 
+    boost::asio::connect(socket, endpoints, errorCode);
     if (errorCode) {
         BC_WARN("Failed to connect to local Tor proxy at {}:{}. Error: {}", torHost, torPort,
                 errorCode.message());
@@ -120,7 +120,6 @@ auto TcpClient::Connect(std::string_view onionAddress, std::uint16_t destPort) -
     }
 
     BC_INFO("Connected to Tor proxy. Negotiating SOCKS5h handshake for {}...", onionAddress);
-
     if (!PerformTorHandshake(socket, onionAddress, destPort)) {
         BC_ERROR("Tor Handshake failed. Dropping connection.");
         Disconnect();
@@ -137,7 +136,6 @@ auto TcpClient::Disconnect() noexcept -> void
         boost::system::error_code errorCode;
         // NOLINTNEXTLINE(cert-err33-c, bugprone-unused-return-value)
         socket.close(errorCode);
-
         if (errorCode) {
             BC_TRACE("Error closing socket: {}", errorCode.message());
         }
@@ -173,9 +171,12 @@ auto TcpClient::DoCbrTick() -> void
             DoCbrTick();
     });
 
+    if (!isAuthenticated) {
+        return;
+    }
+
     auto frame = frameProvider();
     writeQueue.push(frame.Serialize());
-
     DoWrite();
 }
 
@@ -186,7 +187,8 @@ auto TcpClient::DoRead() -> void
         [this](boost::system::error_code ec, std::size_t bytesTransferred) -> void {
             if (ec) {
                 if (ec != boost::asio::error::operation_aborted) {
-                    BC_WARN("Network read error: {}", ec.message());
+                    BC_WARN("TCP Client read error: {}", ec.message());
+                    Disconnect();
                 }
                 return;
             }
@@ -194,20 +196,23 @@ auto TcpClient::DoRead() -> void
             parser.FeedBytes(std::span<const std::uint8_t>(readBuffer.data(), bytesTransferred));
 
             if (parser.HasError()) {
-                BC_ERROR("Parser error in TcpClient. Dropping connection.");
+                BC_ERROR("Frame parser entered error state. Dropping connection.");
                 Disconnect();
                 return;
             }
 
             while (auto frameOpt = parser.TryExtractFrame()) {
-                if (frameReceiver) {
-                    frameReceiver(std::move(*frameOpt));
+                auto frame = std::move(*frameOpt);
+
+                if (frame.GetActionType() == bc::protocol::ActionType::AUTH_CHALLENGE) {
+                    HandleAuthChallenge(frame.GetPayload());
+                    isAuthenticated = true;
+                } else if (isAuthenticated && frameReceiver) {
+                    frameReceiver(std::move(frame));
                 }
             }
 
-            if (socket.is_open()) {
-                DoRead();
-            }
+            DoRead();
         });
 }
 
@@ -218,7 +223,6 @@ auto TcpClient::DoWrite() -> void
     }
 
     writeInProgress = true;
-
     boost::asio::async_write(socket, boost::asio::buffer(writeQueue.front()),
                              [this](boost::system::error_code ec, std::size_t /*length*/) -> void {
                                  writeInProgress = false;
@@ -235,6 +239,38 @@ auto TcpClient::DoWrite() -> void
 
                                  DoWrite();
                              });
+}
+
+auto TcpClient::HandleAuthChallenge(const bc::protocol::Payload& challenge) -> void
+{
+    std::uint64_t nonce = 0;
+    std::vector<std::uint8_t> combined = challenge;
+    combined.resize(challenge.size() + sizeof(nonce));
+
+    std::span<std::uint8_t> combinedSpan(combined);
+    auto nonceDest = combinedSpan.subspan(challenge.size(), sizeof(nonce));
+
+    while (true) {
+        nonce++;
+        std::memcpy(nonceDest.data(), &nonce, sizeof(nonce));
+
+        std::string hashHex = bc::core::HashPayload(combined);
+        if (hashHex.starts_with("000")) {
+            break;
+        }
+    }
+
+    std::vector<std::uint8_t> responsePayload(sizeof(nonce));
+    std::memcpy(responsePayload.data(), &nonce, sizeof(nonce));
+    bc::protocol::MailboxID dummy;
+    dummy.Fill(0);
+
+    auto respFrame = bc::protocol::Frame::CreateAuthResponse(dummy, responsePayload);
+
+    writeQueue.push(respFrame.Serialize());
+    if (!writeInProgress) {
+        DoWrite();
+    }
 }
 
 } // namespace bc::network

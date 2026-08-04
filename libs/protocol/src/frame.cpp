@@ -78,4 +78,14 @@ Frame::Frame(ActionType action, const MailboxID& mailboxId, Payload&& payload)
 {
 }
 
+auto Frame::CreateAuthChallenge(const MailboxID& id, Payload challengeData) -> Frame
+{
+    return {ActionType::AUTH_CHALLENGE, id, std::move(challengeData)};
+}
+
+auto Frame::CreateAuthResponse(const MailboxID& id, Payload responseData) -> Frame
+{
+    return {ActionType::AUTH_RESPONSE, id, std::move(responseData)};
+}
+
 } // namespace bc::protocol

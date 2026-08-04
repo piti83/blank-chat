@@ -1,12 +1,15 @@
 #include "network/tcp_session.h"
 
 #include <cstddef>
+#include <span>
 #include <utility>
 
 #include <boost/asio.hpp>
 #include <sodium.h>
 
 #include <core/logger.h>
+#include <core/string_utils.h>
+#include <network/network_types.h>
 #include <protocol/protocol_types.h>
 
 namespace bc::network {
@@ -18,6 +21,14 @@ TcpSession::TcpSession(TcpSocket socket, bc::protocol::IFrameHandler& handler)
 
 auto TcpSession::Start() -> void
 {
+    currentChallenge.resize(challengSize);
+    randombytes_buf(currentChallenge.data(), currentChallenge.size());
+
+    bc::protocol::MailboxID dummyId;
+    dummyId.Fill(0x00);
+    auto challengeFrame = bc::protocol::Frame::CreateAuthChallenge(dummyId, currentChallenge);
+
+    DoWrite(challengeFrame.Serialize());
     DoRead();
 }
 
@@ -97,22 +108,68 @@ auto TcpSession::ProcessWriteQueue() -> void
 auto TcpSession::ProcessExtractedFrame() -> void
 {
     while (auto frameOpt = parser.TryExtractFrame()) {
-        auto& frame = *frameOpt;
+        auto frame = std::move(*frameOpt);
+
+        if (state == SessionState::UNAUTHENTICATED) {
+            if (!HandleAuthResponse(frame)) {
+                return;
+            }
+            continue;
+        }
 
         if (frame.GetActionType() == bc::protocol::ActionType::PUSH ||
             frame.GetActionType() == bc::protocol::ActionType::ACK) {
-            BC_TRACE("Received PUSH/ACK frame, injecting into handler.");
             handler.ProcessPush(std::move(frame));
         } else if (frame.GetActionType() == bc::protocol::ActionType::POLL) {
-            BC_TRACE("Received POLL frame, checking handler for messages.");
-            auto responseOpt = handler.ProcessPoll(frame.GetMailboxID());
-
-            if (responseOpt.has_value()) {
-                BC_TRACE("Message found for POLL, sending response.");
-                DoWrite(std::move(*responseOpt).Serialize());
+            if (auto responseOpt = handler.ProcessPoll(frame.GetMailboxID())) {
+                DoWrite(responseOpt->Serialize());
+            } else {
+                auto emptyPoll = bc::protocol::Frame::CreatePoll(frame.GetMailboxID());
+                DoWrite(emptyPoll.Serialize());
             }
         }
     }
+}
+
+auto TcpSession::HandleAuthResponse(const bc::protocol::Frame& frame) -> bool
+{
+    if (frame.GetActionType() != bc::protocol::ActionType::AUTH_RESPONSE) {
+        BC_WARN("Expected AUTH_RESPONSE, received different frame type. Dropping connection.");
+        boost::system::error_code closeEc;
+        [[maybe_unused]] auto retEc = socket.close(closeEc);
+        if (closeEc) {
+            BC_TRACE("Socket closed with underlying OS message: {}", closeEc.message());
+        }
+        return false;
+    }
+
+    auto payload = frame.GetPayload();
+    std::uint64_t nonce = 0;
+    if (payload.size() == sizeof(nonce)) {
+        std::memcpy(&nonce, payload.data(), sizeof(nonce));
+    }
+
+    std::vector<std::uint8_t> combined = currentChallenge;
+    combined.resize(currentChallenge.size() + sizeof(nonce));
+
+    std::span<std::uint8_t> combinedSpan(combined);
+    auto nonceDest = combinedSpan.subspan(currentChallenge.size(), sizeof(nonce));
+    std::memcpy(nonceDest.data(), &nonce, sizeof(nonce));
+
+    std::string hashHex = bc::core::HashPayload(combined);
+    if (hashHex.starts_with("000")) {
+        BC_INFO("Client successfully authenticated.");
+        state = SessionState::AUTHENTICATED;
+        return true;
+    }
+
+    BC_WARN("Invalid PoW. Dropping connection.");
+    boost::system::error_code closeEc;
+    [[maybe_unused]] auto retEc = socket.close(closeEc);
+    if (closeEc) {
+        BC_TRACE("Socket closed with underlying OS message: {}", closeEc.message());
+    }
+    return false;
 }
 
 } // namespace bc::network
