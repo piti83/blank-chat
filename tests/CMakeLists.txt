@@ -22,6 +22,7 @@ add_executable(blank_chat_ut
     libs/domain/client/payload_formatter_test.cpp
     libs/domain/server/config_test.cpp
     libs/domain/server/message_broker_test.cpp
+    libs/network/memory_monitor_test.cpp
     libs/network/tcp_client_test.cpp
     libs/network/tcp_server_test.cpp
     libs/network/tcp_session_test.cpp

@@ -18,6 +18,7 @@
 namespace bc::network::test {
 
 namespace {
+
 class ServerMockFrameHandler : public bc::protocol::IFrameHandler
 {
 public:
@@ -41,6 +42,7 @@ public:
 };
 
 std::atomic<std::uint16_t> testPortAllocator{40000};
+
 } // namespace
 
 class TcpServerTest : public ::testing::Test
@@ -49,6 +51,8 @@ protected:
     boost::asio::io_context ioContext;
     ServerMockFrameHandler mockHandler;
     std::uint16_t currentTestPort;
+
+    static constexpr std::uint8_t testQuotaPercent = 80;
 
     void SetUp() override
     {
@@ -72,7 +76,6 @@ protected:
             size_t bytes = sock.read_some(boost::asio::buffer(rxBuffer), ec);
             if (ec)
                 return false;
-
             parser.FeedBytes(std::span<const std::uint8_t>(rxBuffer.data(), bytes));
             if (auto f = parser.TryExtractFrame()) {
                 if (f->GetActionType() == bc::protocol::ActionType::AUTH_CHALLENGE) {
@@ -100,6 +103,7 @@ protected:
         auto resp = bc::protocol::Frame::CreateAuthResponse(dummy, responsePayload);
 
         boost::asio::write(sock, boost::asio::buffer(resp.Serialize()), ec);
+
         return !ec;
     }
 };
@@ -108,8 +112,8 @@ TEST_F(TcpServerTest, ConstructorThrowsWhenPortIsAlreadyBound)
 {
     boost::system::error_code ec;
     boost::asio::ip::tcp::endpoint endpoint(boost::asio::ip::tcp::v4(), currentTestPort);
-
     boost::asio::ip::tcp::acceptor blocker(ioContext);
+
     blocker.open(endpoint.protocol(), ec);
     ASSERT_FALSE(ec);
     blocker.bind(endpoint, ec);
@@ -117,30 +121,31 @@ TEST_F(TcpServerTest, ConstructorThrowsWhenPortIsAlreadyBound)
     blocker.listen(boost::asio::socket_base::max_listen_connections, ec);
     ASSERT_FALSE(ec);
 
-    EXPECT_DEATH({ TcpServer server(ioContext, currentTestPort, mockHandler); }, ".*");
+    EXPECT_DEATH(
+        { TcpServer server(ioContext, currentTestPort, mockHandler, testQuotaPercent); }, ".*");
 }
 
 TEST_F(TcpServerTest, ConstructorSucceedsOnAvailablePort)
 {
-    TcpServer server(ioContext, currentTestPort, mockHandler);
+    TcpServer server(ioContext, currentTestPort, mockHandler, testQuotaPercent);
     server.Start();
 }
 
 TEST_F(TcpServerTest, GracefullyHandlesOperationAbortedOnDestruction)
 {
     std::optional<TcpServer> server;
-    server.emplace(ioContext, currentTestPort, mockHandler);
+    server.emplace(ioContext, currentTestPort, mockHandler, testQuotaPercent);
     server->Start();
 
     server.reset();
-
     PumpIoContext();
+
     EXPECT_TRUE(ioContext.stopped());
 }
 
 TEST_F(TcpServerTest, SurvivesImmediateClientDisconnectionLikePortScanners)
 {
-    TcpServer server(ioContext, currentTestPort, mockHandler);
+    TcpServer server(ioContext, currentTestPort, mockHandler, testQuotaPercent);
     server.Start();
 
     for (int i = 0; i < 50; ++i) {
@@ -161,7 +166,7 @@ TEST_F(TcpServerTest, SurvivesImmediateClientDisconnectionLikePortScanners)
 
 TEST_F(TcpServerTest, AcceptsConnectionsAndProperlyRoutesDataToSessions)
 {
-    TcpServer server(ioContext, currentTestPort, mockHandler);
+    TcpServer server(ioContext, currentTestPort, mockHandler, testQuotaPercent);
     server.Start();
 
     constexpr int clientsCount = 10;

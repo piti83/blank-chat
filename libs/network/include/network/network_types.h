@@ -48,6 +48,12 @@ static constexpr std::size_t prefixLength = 14;
 
 static constexpr std::size_t challengSize = 32;
 
+static constexpr std::size_t statusBufferSize = 2048;
+static constexpr std::size_t vmLckPrefixLength = 6;
+static constexpr std::uint64_t bytesInKb = 1024;
+static constexpr std::uint64_t percentMax = 100;
+static constexpr std::uint64_t defaultFallbackRam = 1073741824ULL;
+
 using IOContext = boost::asio::io_context;
 using Socket = boost::asio::ip::tcp::socket;
 

@@ -5,6 +5,7 @@
 
 #include <boost/asio.hpp>
 
+#include <network/memory_monitor.h>
 #include <network/network_types.h>
 #include <protocol/i_frame_handler.h>
 
@@ -13,7 +14,8 @@ namespace bc::network {
 class TcpServer
 {
 public:
-    TcpServer(IOContext& ioContext, std::uint16_t port, bc::protocol::IFrameHandler& handler);
+    TcpServer(IOContext& ioContext, std::uint16_t port, bc::protocol::IFrameHandler& handler,
+              std::uint8_t memoryQuotaPercent);
     ~TcpServer() = default;
 
     TcpServer(const TcpServer&) = delete;
@@ -31,6 +33,7 @@ private:
 
     TcpAcceptor acceptor;
     bc::protocol::IFrameHandler& handler;
+    MemoryMonitor memoryMonitor;
 };
 
 } // namespace bc::network
