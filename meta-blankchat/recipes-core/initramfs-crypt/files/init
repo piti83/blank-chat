@@ -1,0 +1,54 @@
+#!/bin/sh
+
+PATH=/sbin:/bin:/usr/sbin:/usr/bin
+
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs devtmpfs /dev
+
+exec 0</dev/console
+exec 1>/dev/console
+exec 2>/dev/console
+
+if ! cryptsetup isLuks /dev/sda2; then
+    echo "First boot detected. Encrypting disk on the fly..."
+    mkdir -p /mnt/old_root /mnt/ram_backup
+    mount /dev/sda2 /mnt/old_root
+
+    mount -t tmpfs -o size=90% tmpfs /mnt/ram_backup
+
+    echo "Backing up rootfs to RAM..."
+    if ! cp -a /mnt/old_root/. /mnt/ram_backup/; then
+        echo "CRITICAL: Backup to RAM failed! (Out of memory/space?)"
+        echo "Increase QEMU RAM (e.g., -m 4096). System halted to prevent data loss."
+        exec sh
+    fi
+    umount /mnt/old_root
+
+    echo "Formatting LUKS container..."
+    echo -n "blankchat" | cryptsetup luksFormat --type luks1 -q /dev/sda2 -
+    echo -n "blankchat" | cryptsetup luksOpen /dev/sda2 cryptroot
+    mkfs.ext4 -q /dev/mapper/cryptroot
+
+    mkdir -p /mnt/root
+    mount /dev/mapper/cryptroot /mnt/root
+
+    echo "Restoring rootfs from RAM..."
+    if ! cp -a /mnt/ram_backup/. /mnt/root/; then
+        echo "CRITICAL: Restore from RAM failed!"
+        exec sh
+    fi
+    umount /mnt/ram_backup
+    echo "Encryption complete. Default password is: blankchat"
+else
+    echo "Encryption password: "
+    cryptsetup luksOpen /dev/sda2 cryptroot
+    if [ $? -ne 0 ]; then
+        echo "CRITICAL: Incorrect password! System halted."
+        exec sh
+    fi
+    mkdir -p /mnt/root
+    mount /dev/mapper/cryptroot /mnt/root
+fi
+
+exec switch_root /mnt/root /sbin/init

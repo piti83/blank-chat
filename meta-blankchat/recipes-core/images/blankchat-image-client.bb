@@ -1,8 +1,8 @@
 inherit core-image
 
 SUMMARY = "Bootable Client Image"
-
 IMAGE_FSTYPES += "wic"
+WKS_FILE = "blankchat-client.wks"
 
 IMAGE_INSTALL += "packagegroup-core-boot"
 
