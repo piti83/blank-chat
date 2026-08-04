@@ -28,12 +28,21 @@ endif()
 
 if(BUILD_CLIENT)
     add_executable(blank_chat_client client/main.cpp)
+
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(SECCOMP REQUIRED libseccomp)
+
+    target_include_directories(blank_chat_client PRIVATE
+        ${SECCOMP_INCLUDE_DIRS}
+    )
+
     target_link_libraries(blank_chat_client PRIVATE
         blankchat::core
         blankchat::domain-client
         blankchat::protocol
         blankchat::cli
         ext::sodium
+        ${SECCOMP_LIBRARIES}
     )
 
     configure_and_install_config(

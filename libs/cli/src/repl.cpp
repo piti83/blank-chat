@@ -57,6 +57,7 @@ auto Repl::Run() -> void
         std::cout << ">>> ";
         std::string cmd;
         if (!(std::cin >> cmd) || cmd == "exit") {
+            WipeTerminal();
             break;
         }
 
@@ -77,6 +78,11 @@ auto Repl::Run() -> void
             std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
         }
     }
+}
+
+auto Repl::WipeTerminal() -> void
+{
+    std::cout << "\033[3J\033[H\033[2J" << std::flush;
 }
 
 Repl::~Repl()

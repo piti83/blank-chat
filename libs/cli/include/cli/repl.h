@@ -31,6 +31,8 @@ public:
     Repl(Repl&&) = delete;
     auto operator=(Repl&&) -> Repl& = delete;
 
+    static auto WipeTerminal() -> void;
+
     ~Repl();
 
 private:
