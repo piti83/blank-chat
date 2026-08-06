@@ -106,8 +106,4 @@ I welcome every contributor that wants to help develop this project.
 
 ## License
 
-This project is licensed under the **GNU General Public License v3.0** (GPLv3) - see the [LICENSE](LICENSE) file for details. 
-
----
-
-*Blank Chat — Because privacy is a fundamental human right.*
+This project is licensed under the **GNU General Public License v3.0** (GPLv3) - see the [LICENSE](LICENSE) file for details.
