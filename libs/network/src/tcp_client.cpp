@@ -1,5 +1,3 @@
-#include "network/tcp_client.h"
-
 #include <algorithm>
 #include <array>
 #include <iterator>
@@ -10,6 +8,8 @@
 
 #include <core/logger.h>
 #include <core/string_utils.h>
+
+#include "network/tcp_client.h"
 
 namespace bc::network {
 
@@ -132,6 +132,9 @@ auto TcpClient::Connect(std::string_view onionAddress, std::uint16_t destPort) -
 
 auto TcpClient::Disconnect() noexcept -> void
 {
+    boost::system::error_code ignoreEc;
+    cbrTimer.cancel(ignoreEc);
+
     if (socket.is_open()) {
         boost::system::error_code errorCode;
         // NOLINTNEXTLINE(cert-err33-c, bugprone-unused-return-value)
@@ -143,15 +146,17 @@ auto TcpClient::Disconnect() noexcept -> void
 }
 
 auto TcpClient::StartAsyncEngine(FrameProvider provider, FrameReceiver receiver,
-                                 std::chrono::milliseconds interval) -> void
+                                 std::function<std::chrono::milliseconds()> intervalProvider)
+    -> void
 {
     frameProvider = std::move(provider);
     frameReceiver = std::move(receiver);
-    cbrInterval = interval;
+
+    this->intervalProvider = std::move(intervalProvider);
 
     DoRead();
 
-    cbrTimer.expires_after(cbrInterval);
+    cbrTimer.expires_after(this->intervalProvider());
     cbrTimer.async_wait([this](boost::system::error_code ec) -> void {
         if (!ec)
             DoCbrTick();
@@ -165,7 +170,7 @@ TcpClient::~TcpClient() noexcept
 
 auto TcpClient::DoCbrTick() -> void
 {
-    cbrTimer.expires_at(cbrTimer.expiry() + cbrInterval);
+    cbrTimer.expires_at(cbrTimer.expiry() + intervalProvider());
     cbrTimer.async_wait([this](boost::system::error_code ec) -> void {
         if (!ec)
             DoCbrTick();

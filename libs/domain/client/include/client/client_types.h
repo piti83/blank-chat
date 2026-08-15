@@ -9,6 +9,11 @@ namespace bc::domain::client {
 
 static constexpr std::uint16_t defaultOnionPort = 80;
 static constexpr std::size_t cryptoSignBytes = 64;
+static constexpr std::uint32_t minClampMs = 100;
+
+constexpr double maxRandomUint32 = 4294967296.0;
+constexpr double maxUniformRandom = 0.9999999;
+constexpr double msPerSecond = 1000.0;
 
 enum class MessageDirection : std::uint8_t { INBOUND = 0x01, OUTBOUND = 0x02 };
 enum class MessageStatus : std::uint8_t { PENDING_ACK = 0x01, DELIVERED = 0x02, FAILED = 0x03 };

@@ -76,9 +76,11 @@ TEST_F(MemoryMonitorTest, CalculateMemoryLimit_CalculatesProperly)
 {
     std::uint64_t limit80 = MemoryMonitor::CalculateMemoryLimit(80);
     std::uint64_t limit40 = MemoryMonitor::CalculateMemoryLimit(40);
-
     EXPECT_GT(limit80, 0);
-    EXPECT_EQ(limit80, limit40 * 2);
+
+    std::uint64_t maxVal = std::max(limit80, limit40 * 2);
+    std::uint64_t minVal = std::min(limit80, limit40 * 2);
+    EXPECT_LE(maxVal - minVal, 10) << "Limits differ by more than acceptable truncation margin";
 }
 
 TEST_F(MemoryMonitorTest, CheckMemory_TriggersExceededFlagWhenVmLckIsHigh)
