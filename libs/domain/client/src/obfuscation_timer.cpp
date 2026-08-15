@@ -1,3 +1,5 @@
+#include "client/obfuscation_timer.h"
+
 #include <algorithm>
 #include <cmath>
 
@@ -5,8 +7,6 @@
 
 #include <client/client_types.h>
 #include <core/logger.h>
-
-#include "client/obfuscation_timer.h"
 
 namespace bc::domain::client {
 
