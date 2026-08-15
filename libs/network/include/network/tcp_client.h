@@ -28,8 +28,9 @@ public:
     [[nodiscard]] auto Connect(std::string_view onionAddress, std::uint16_t destPort) -> bool;
     auto Disconnect() noexcept -> void;
 
-    auto StartAsyncEngine(FrameProvider provider, FrameReceiver receiver,
-                          std::chrono::milliseconds cbrInterval) -> void;
+    auto StartAsyncEngine(std::function<bc::protocol::Frame()> provider,
+                          std::function<void(bc::protocol::Frame&&)> receiver,
+                          std::function<std::chrono::milliseconds()> intervalProvider) -> void;
 
     ~TcpClient() noexcept;
 
@@ -45,7 +46,7 @@ private:
     std::uint16_t torPort;
 
     boost::asio::steady_timer cbrTimer;
-    std::chrono::milliseconds cbrInterval{defaultCbrIntervalMs};
+    std::function<std::chrono::milliseconds()> intervalProvider;
 
     FrameProvider frameProvider;
     FrameReceiver frameReceiver;

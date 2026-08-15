@@ -8,6 +8,7 @@
 
 #include <sodium.h>
 
+#include <client/obfuscation_timer.h>
 #include <client/payload_formatter.h>
 #include <core/logger.h>
 #include <core/string_utils.h>
@@ -18,7 +19,6 @@
 #include <protocol/mailbox_id.h>
 #include <protocol/protocol_types.h>
 
-#include "network/network_types.h"
 #include <cli/cli_types.h>
 
 namespace {
@@ -96,20 +96,21 @@ Repl::~Repl()
 auto Repl::HandleConnect() -> void
 {
     std::cout << "Connecting via Tor proxy...\n";
-
     if (client.Connect(config.relayConfig.onionAddress, config.relayConfig.onionPort)) {
         std::cout << "Successfully connected.\n";
         contactAliases = addressBook.GetAllAliases();
 
-        if (config.obfuscationConfig.mode == "poisson") {
-            BC_WARN(
-                "Poisson obfuscation is configured but not yet implemented. Falling back to CBR.");
-        }
+        auto obfuscationTimer = bc::domain::client::CreateObfuscationTimer(
+            config.obfuscationConfig.mode, config.obfuscationConfig.cbr_interval_ms,
+            config.obfuscationConfig.poissonLambda);
 
         client.StartAsyncEngine(
             [this]() -> bc::protocol::Frame { return GetNextFrameForCBR(); },
             [this](bc::protocol::Frame&& frame) -> void { OnFrameReceived(std::move(frame)); },
-            std::chrono::milliseconds(config.obfuscationConfig.cbr_interval_ms));
+            [t = std::shared_ptr<bc::domain::client::IObfuscationTimer>(
+                 std::move(obfuscationTimer))]() -> std::chrono::milliseconds {
+                return t->GetNextInterval();
+            });
 
         ioContext.restart();
         asioThread = std::thread([this]() -> void {

@@ -19,6 +19,7 @@ add_executable(blank_chat_ut
     libs/domain/client/contact_storage_test.cpp
     libs/domain/client/conversation_cache_test.cpp
     libs/domain/client/identity_storage_test.cpp
+    libs/domain/client/obfuscation_timer_test.cpp
     libs/domain/client/payload_formatter_test.cpp
     libs/domain/server/config_test.cpp
     libs/domain/server/message_broker_test.cpp

@@ -206,7 +206,7 @@ TEST_F(TcpClientTest, AsyncEngineSuccessfullyTransmitsCBRFrames)
     };
     auto receiver = [](protocol::Frame&& /*frame*/) {};
 
-    client.StartAsyncEngine(provider, receiver, std::chrono::milliseconds(10));
+    client.StartAsyncEngine(provider, receiver, []() { return std::chrono::milliseconds(10); });
     std::thread ioThread([&]() { clientIo.run(); });
 
     {
@@ -257,7 +257,7 @@ TEST_F(TcpClientTest, AsyncEngineSuccessfullyReceivesFrames)
         }
     };
 
-    client.StartAsyncEngine(provider, receiver, std::chrono::milliseconds(1000));
+    client.StartAsyncEngine(provider, receiver, []() { return std::chrono::milliseconds(10); });
     std::thread ioThread([&]() { clientIo.run(); });
 
     auto status = future.wait_for(std::chrono::seconds(2));
@@ -290,6 +290,8 @@ TEST_F(TcpClientTest, AsyncEngineHandlesTcpFragmentationSafely)
                 boost::asio::write(sock, boost::asio::buffer(&byte, 1));
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
         });
 
     TcpClient client(clientIo, "127.0.0.1", serverPort);
@@ -308,7 +310,7 @@ TEST_F(TcpClientTest, AsyncEngineHandlesTcpFragmentationSafely)
         }
     };
 
-    client.StartAsyncEngine(provider, receiver, std::chrono::milliseconds(1000));
+    client.StartAsyncEngine(provider, receiver, []() { return std::chrono::milliseconds(10); });
     std::thread ioThread([&]() { clientIo.run(); });
 
     auto status = future.wait_for(std::chrono::seconds(2));
@@ -344,7 +346,7 @@ TEST_F(TcpClientTest, AsyncEngineGracefullyHandlesServerDisconnect)
     };
     auto receiver = [](protocol::Frame&& /*frame*/) {};
 
-    client.StartAsyncEngine(provider, receiver, std::chrono::milliseconds(10));
+    client.StartAsyncEngine(provider, receiver, []() { return std::chrono::milliseconds(10); });
     std::thread ioThread([&]() { clientIo.run(); });
 
     std::this_thread::sleep_for(std::chrono::milliseconds(50));

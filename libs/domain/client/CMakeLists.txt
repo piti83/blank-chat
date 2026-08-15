@@ -4,6 +4,7 @@ add_library(domain_client STATIC
     src/contact_storage.cpp
     src/conversation_cache.cpp
     src/identity_storage.cpp
+    src/obfuscation_timer.cpp
     src/payload_formatter.cpp
 )
 
