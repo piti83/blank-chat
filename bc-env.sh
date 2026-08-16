@@ -16,6 +16,10 @@ alias build-yocto="python3 $PROJECT_ROOT/scripts/build_yocto.py"
 alias get-sdk="python3 $PROJECT_ROOT/scripts/download_sdk.py"
 alias push-sdk="python3 $PROJECT_ROOT/scripts/upload_sdk.py"
 
+alias chutney-start="bash $PROJECT_ROOT/benchmarks/chutney_manager.sh start"
+alias chutney-stop="bash $PROJECT_ROOT/benchmarks/chutney_manager.sh stop"
+alias chutney-clean="bash $PROJECT_ROOT/benchmarks/chutney_manager.sh clean"
+
 alias check-env="echo -e '\033[92m\033[1mEnvironment sourced\033[0m'"
 
 echo -e "\033[92m\033[1mBlank Chat environment loaded successfully!\033[0m"
