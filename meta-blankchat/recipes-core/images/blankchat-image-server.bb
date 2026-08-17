@@ -6,8 +6,6 @@ IMAGE_FSTYPES += "wic"
 
 IMAGE_INSTALL += "packagegroup-core-boot"
 
-IMAGE_FEATURES += "read-only-rootfs"
-
 IMAGE_INSTALL += " \
     blank-chat-server \
     libsodium \

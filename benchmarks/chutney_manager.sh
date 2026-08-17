@@ -5,7 +5,7 @@ set -euo pipefail
 PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 CHUTNEY_DIR="$PROJECT_ROOT/benchmarks/chutney"
 
-NETWORK_NAME="${CHUTNEY_NETWORK_NAME:-basic-min}"
+NETWORK_NAME="${CHUTNEY_NETWORK_NAME:-hs-v3-min}"
 
 RUNTIME_DIR="$PROJECT_ROOT/.chutney"
 DATA_DIR="$RUNTIME_DIR/net"
