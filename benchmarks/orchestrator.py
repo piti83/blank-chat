@@ -2,6 +2,9 @@ import sys
 import pexpect
 import time
 from pathlib import Path
+import subprocess
+import re
+import atexit
 
 sys.path.append(str(Path(__file__).resolve().parent.parent / "scripts"))
 from utils import print_info, print_success, print_error
@@ -114,10 +117,45 @@ def setup_server():
         print_error("\nTimeout waiting for .onion address. Process is stuck or silent.")
         sys.exit(1)
 
+def setup_tunnels(vm_name: str = "bc-server"):
+    print_info(f"Retrieving IP address for {vm_name}...")
+
+    vm_ip = None
+    for _ in range(10):
+        res = subprocess.run(["virsh", "-c", "qemu:///system", "domifaddr", vm_name], capture_output=True, text=True)
+        match = re.search(r"(\d+\.\d+\.\d+\.\d+)/", res.stdout)
+        if match:
+            vm_ip = match.group(1)
+            break
+        time.sleep(2)
+
+    if not vm_ip:
+        print_error("Could not determine VM IP address. Ensure the VM is running and DHCP is working.")
+        sys.exit(1)
+
+    print_success(f"Found VM IP: {vm_ip}. Starting socat tunnels...")
+
+    p1 = subprocess.Popen(
+        ["socat", "TCP-LISTEN:8006,bind=192.168.122.1,fork,reuseaddr", "TCP:127.0.0.1:8006"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    )
+
+    p2 = subprocess.Popen(
+        ["socat", "TCP-LISTEN:8080,bind=127.0.0.1,fork,reuseaddr", f"TCP:{vm_ip}:8080"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    )
+
+    def cleanup():
+        print_info("Cleaning up socat tunnels...")
+        p1.terminate()
+        p2.terminate()
+
+    atexit.register(cleanup)
+
 def main():
     print_info("Starting test orchestration...")
+    setup_tunnels("bc-server")
     onion_address = setup_server()
-    print_info(f"Next step: configuring clients with address {onion_address}")
 
 if __name__ == "__main__":
     main()
