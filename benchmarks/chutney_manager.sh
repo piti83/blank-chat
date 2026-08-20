@@ -125,22 +125,28 @@ start_network() {
 
     echo
     echo "[*] 1/4 Initializing '$NETWORK_NAME' network..."
-
     run_chutney init --net "$NETWORK_NAME"
 
     echo
     echo "[*] 2/4 Configuring Tor nodes..."
-
     run_chutney configure
 
     echo
-    echo "[*] 3/4 Starting Tor nodes..."
+    echo "[*] 2.5/4 Forcing CookieAuthentication 0..."
+    for conf in "$DATA_DIR/nodes/"*/torrc; do
+        echo "CookieAuthentication 0" >> "$conf"
+    done
 
+    echo
+    echo "[*] 3/4 Starting Tor nodes..."
     run_chutney start
+
+    echo "[*] Creating 32-byte fake cookie for Python orchestrator..."
+    mkdir -p "$DATA_DIR/nodes/006r"
+    dd if=/dev/zero of="$DATA_DIR/nodes/006r/control_auth_cookie" bs=32 count=1 2>/dev/null
 
     echo
     echo "[*] 4/4 Waiting for network bootstrap..."
-
     run_chutney wait_for_bootstrap
 
     echo
@@ -164,9 +170,7 @@ stop_network() {
     fi
 
     echo "[*] Stopping private Tor network..."
-
     run_chutney stop
-
     echo "[+] Network stopped."
 }
 
@@ -189,7 +193,6 @@ verify_network() {
     fi
 
     echo "[*] Verifying private Tor network..."
-
     run_chutney verify
 
     echo
@@ -201,14 +204,11 @@ clean_network() {
 
     if network_initialized; then
         echo "[*] Stopping Tor network..."
-
         run_chutney stop 2>/dev/null || true
     fi
 
     echo "[*] Removing runtime data..."
-
     rm -rf "$DATA_DIR"
-
     echo "[+] Environment cleaned."
 }
 
@@ -227,34 +227,26 @@ usage() {
 }
 
 case "${1:-}" in
-
     start)
         start_network
         ;;
-
     stop)
         stop_network
         ;;
-
     status)
         status_network
         ;;
-
     verify)
         verify_network
         ;;
-
     ports)
         ports_network
         ;;
-
     clean)
         clean_network
         ;;
-
     *)
         usage
         exit 1
         ;;
-
 esac
