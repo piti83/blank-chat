@@ -137,6 +137,8 @@ start_network() {
         echo "CookieAuthentication 0" >> "$conf"
     done
 
+    sed -i 's/^SocksPort 0/SocksPort 127.0.0.1:9050/g' "$DATA_DIR/nodes/006r/torrc"
+
     echo
     echo "[*] 3/4 Starting Tor nodes..."
     run_chutney start
