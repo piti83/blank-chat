@@ -18,6 +18,7 @@ SUDO_KEEPALIVE_PID=$!
 
 trap 'kill $SUDO_KEEPALIVE_PID 2>/dev/null' EXIT
 
+shopt -s expand_aliases
 source bc-env.sh
 
 DURATION=60
@@ -38,7 +39,7 @@ for PROFILE in "${PROFILES[@]}"; do
         sleep 5
 
         echo "[*] Recreating clean virtual machines..."
-        python3 scripts/vm_manager.py
+        python3 benchmarks/vm_manager.py
 
         echo "[*] Waiting 180 seconds for guest operating systems to boot..."
         sleep 180

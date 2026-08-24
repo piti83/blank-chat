@@ -147,7 +147,7 @@ def setup_server() -> str:
         f"echo 'tor_control_port = {TOR_SERVER_CONTROL_PORT}' >> /etc/blank-chat/server_config.toml",
         "echo '[security]' >> /etc/blank-chat/server_config.toml",
         "echo 'memory_quota_percent = 80' >> /etc/blank-chat/server_config.toml",
-        "echo 'max_messages_per_mailbox = 50' >> /etc/blank-chat/server_config.toml"
+        "echo 'max_messages_per_mailbox = 30000' >> /etc/blank-chat/server_config.toml"
     ]
 
     for cmd in lines:
@@ -182,13 +182,13 @@ def setup_client(vm_name: str, onion_address: str, mode: str):
         f"echo 'onion_address = \"{onion_address}\"' >> /etc/blank-chat/client_config.toml",
         "echo 'onion_port = 80' >> /etc/blank-chat/client_config.toml",
         "echo '[obfuscation]' >> /etc/blank-chat/client_config.toml",
-        f"echo 'mode = \"{mode}\"' >> /etc/blank-chat/client_config.toml",
-        "echo 'cbr_interval_ms = 10000' >> /etc/blank-chat/client_config.toml",
-        "echo 'poisson_lambda = 0.1' >> /etc/blank-chat/client_config.toml",
+        f"echo 'mode = \"{mode}\"' >>/etc/blank-chat/client_config.toml",
+        "echo 'cbr_interval_ms = 1000' >> /etc/blank-chat/client_config.toml",
+        "echo 'poisson_lambda = 1.0' >> /etc/blank-chat/client_config.toml",
         "echo '[storage]' >> /etc/blank-chat/client_config.toml",
         "echo 'contacts_file_path = \"contacts.json\"' >> /etc/blank-chat/client_config.toml",
         "echo '[security]' >> /etc/blank-chat/client_config.toml",
-        "echo 'pfs_message_interval = 50' >> /etc/blank-chat/client_config.toml"
+        "echo 'pfs_message_interval = 30000' >> /etc/blank-chat/client_config.toml"
     ]
 
     for cmd in lines:
@@ -224,28 +224,46 @@ def exchange_keys(c1_child, c1_mnem, c2_child, c2_mnem):
 
 def extract_logs(child: pexpect.spawn, vm_name: str, target_alias: str, profile: str, mode: str):
     print_info(f"Extracting latency logs from {vm_name}...")
-    child.send("exit\n")
-    child.expect(r"root@.*#", timeout=5)
+
+    try:
+        child.send("\r\n")
+        idx = child.expect([r"> ", r"root@.*#"], timeout=2)
+        if idx == 0:
+            child.send("exit\n")
+            child.expect(r"root@.*#", timeout=3)
+    except Exception:
+        pass
+
+    try:
+        child.close(force=True)
+    except Exception:
+        pass
+
+    print_info(f"Re-establishing fresh console connection to {vm_name} for file extraction...")
+    fresh_child = login_to_console(vm_name)
 
     file_path = f"/etc/blank-chat/msg_history/history_{target_alias}.jsonl"
-
     cmd = f"echo '___LOG_START___'; cat {file_path} 2>/dev/null; echo '___LOG_END___'\r\n"
-    child.send(cmd)
-    child.expect(r"___LOG_END___", timeout=15)
+    fresh_child.send(cmd)
 
-    raw_output = child.before
+    try:
+        fresh_child.expect(r"___LOG_END___", timeout=300)
+        raw_output = fresh_child.before
+    except Exception as e:
+        print_error(f"Failed to read logs from {vm_name}: {e}")
+        fresh_child.close(force=True)
+        return
+
     start_idx = raw_output.rfind("___LOG_START___")
     if start_idx == -1:
         print_error(f"Could not find delimiters in {vm_name} output.")
+        fresh_child.close(force=True)
         return
 
     log_content = raw_output[start_idx + len("___LOG_START___"):]
-
     ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
     log_content = ansi_escape.sub('', log_content)
-
     log_content = re.sub(r'[\r\n]', '', log_content)
-
     log_content = log_content.replace('}{', '}\n{')
 
     json_lines = []
@@ -256,6 +274,7 @@ def extract_logs(child: pexpect.spawn, vm_name: str, target_alias: str, profile:
 
     if not json_lines:
         print_error(f"Log file is empty, not found, or corrupted on {vm_name}.")
+        fresh_child.close(force=True)
         return
 
     local_file = f"latency_log_{profile}_{mode}_{vm_name}.jsonl"
@@ -267,15 +286,25 @@ def extract_logs(child: pexpect.spawn, vm_name: str, target_alias: str, profile:
     except Exception as e:
         print_error(f"Failed to write logs from {vm_name}: {e}")
 
-    child.expect(r"root@.*#", timeout=5)
+    fresh_child.close(force=True)
+
+def flush_buffers(children):
+    for c in children:
+        while True:
+            try:
+                c.read_nonblocking(size=8192, timeout=0.01)
+            except:
+                break
 
 def run_simulation(c1_child, c2_child, profile: str, duration_min: int):
     duration_sec = duration_min * 60
     end_time = time.time() + duration_sec
+    clients = [c1_child, c2_child]
 
     if profile == "idle":
         print_info(f"Running IDLE profile for {duration_min} minutes. No messages will be sent.")
         while time.time() < end_time:
+            flush_buffers(clients)
             time.sleep(1)
 
     elif profile == "chat":
@@ -292,7 +321,10 @@ def run_simulation(c1_child, c2_child, profile: str, duration_min: int):
             c2_child.expect(r"> ", timeout=5)
 
             counter += 1
-            time.sleep(15)
+
+            for _ in range(15):
+                flush_buffers(clients)
+                time.sleep(1)
 
     elif profile == "intensive":
         print_info(f"Running INTENSIVE profile for {duration_min} minutes (continuous load)...")
@@ -302,6 +334,7 @@ def run_simulation(c1_child, c2_child, profile: str, duration_min: int):
             c1_child.send(f"send client2 {msg_max}\n")
             c1_child.expect(r"> ", timeout=5)
             counter += 1
+            flush_buffers(clients)
             time.sleep(0.1)
 
 def main():
@@ -340,14 +373,13 @@ def main():
     run_simulation(c1_child, c2_child, args.profile, args.duration)
 
     print_info("Simulation loop finished. Waiting 60 seconds for in-flight messages to arrive...")
-    time.sleep(60)
+    for _ in range(60):
+        flush_buffers([c1_child, c2_child])
+        time.sleep(1)
 
     print_success("\nExtracting data...")
     extract_logs(c1_child, "bc-client-1", "client2", args.profile, args.mode)
     extract_logs(c2_child, "bc-client-2", "client1", args.profile, args.mode)
-
-    c1_child.sendcontrol(']')
-    c2_child.sendcontrol(']')
 
     print_success("\n=== ORCHESTRATION COMPLETE ===")
     print_info("Logs and PCAP files have been saved to your host directory.")
