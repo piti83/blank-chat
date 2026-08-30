@@ -21,27 +21,28 @@ protected:
     boost::asio::io_context ioContext;
 };
 
-TEST_F(MemoryMonitorTest, ParseVmLck_SuccessfullyExtractsValidValues)
+TEST_F(MemoryMonitorTest, ParseVmRSS_SuccessfullyExtractsValidValues)
 {
-    EXPECT_EQ(MemoryMonitor::ParseVmLck("Name:\tbash\nVmLck:\t 1024 kB\nVmHWM:\t 5000 kB"), 1024);
-    EXPECT_EQ(MemoryMonitor::ParseVmLck("VmLck: 0"), 0);
-    EXPECT_EQ(MemoryMonitor::ParseVmLck("VmLck: 99999999"), 99999999);
+    EXPECT_EQ(MemoryMonitor::ParseVmRSS("Name:\tbash\nVmRSS:\t 1024 kB\nVmHWM:\t 5000 kB"), 1024);
+    EXPECT_EQ(MemoryMonitor::ParseVmRSS("VmRSS: 0"), 0);
+    EXPECT_EQ(MemoryMonitor::ParseVmRSS("VmRSS: 99999999"), 99999999);
 }
 
-TEST_F(MemoryMonitorTest, ParseVmLck_FailsSecurelyOnMalformedInput)
+TEST_F(MemoryMonitorTest, ParseVmRSS_FailsSecurelyOnMalformedInput)
 {
-    EXPECT_FALSE(MemoryMonitor::ParseVmLck("Name: bash\nVmRSS: 1000 kB").has_value());
+    EXPECT_FALSE(MemoryMonitor::ParseVmRSS("Name: bash\nVmLck: 1000 kB").has_value());
 
-    EXPECT_FALSE(MemoryMonitor::ParseVmLck("VmLck:    \t  \n").has_value());
+    EXPECT_FALSE(MemoryMonitor::ParseVmRSS("VmRSS:    \t  \n").has_value());
 
-    EXPECT_FALSE(MemoryMonitor::ParseVmLck("VmLck:").has_value());
+    EXPECT_FALSE(MemoryMonitor::ParseVmRSS("VmRSS:").has_value());
 
-    EXPECT_FALSE(MemoryMonitor::ParseVmLck("VmLck: NaN").has_value());
+    EXPECT_FALSE(MemoryMonitor::ParseVmRSS("VmRSS: NaN").has_value());
 }
 
-TEST_F(MemoryMonitorTest, ParseVmLck_FailsSecurelyOnIntegerOverflow)
+TEST_F(MemoryMonitorTest, ParseVmRSS_FailsSecurelyOnIntegerOverflow)
 {
-    EXPECT_FALSE(MemoryMonitor::ParseVmLck("VmLck: 999999999999999999999999999999").has_value());
+    EXPECT_FALSE(
+        MemoryMonitor::ParseVmRSS("VmRSS: 999999999999999999999999999999").has_value());
 }
 
 TEST_F(MemoryMonitorTest, ReadStatusFile_SucceedsOnNormalExecution)
@@ -83,7 +84,7 @@ TEST_F(MemoryMonitorTest, CalculateMemoryLimit_CalculatesProperly)
     EXPECT_LE(maxVal - minVal, 10) << "Limits differ by more than acceptable truncation margin";
 }
 
-TEST_F(MemoryMonitorTest, CheckMemory_TriggersExceededFlagWhenVmLckIsHigh)
+TEST_F(MemoryMonitorTest, CheckMemory_TriggersExceededFlagWhenVmRSSIsHigh)
 {
     MemoryMonitor monitor(ioContext, 80);
 
@@ -95,7 +96,7 @@ TEST_F(MemoryMonitorTest, CheckMemory_TriggersExceededFlagWhenVmLckIsHigh)
     EXPECT_TRUE(monitor.IsQuotaExceeded()) << "Monitor should raise the alarm";
 }
 
-TEST_F(MemoryMonitorTest, CheckMemory_TriggersRecoveryWhenVmLckDropsBelowLimit)
+TEST_F(MemoryMonitorTest, CheckMemory_TriggersRecoveryWhenVmRSSDropsBelowLimit)
 {
     MemoryMonitor monitor(ioContext, 80);
 

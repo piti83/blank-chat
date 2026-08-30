@@ -57,15 +57,16 @@ auto MemoryMonitor::ReadStatusFile(std::span<char> buffer) noexcept -> std::size
     return bytesRead > 0 ? static_cast<std::size_t>(bytesRead) : 0;
 }
 
-auto MemoryMonitor::ParseVmLck(std::string_view status) noexcept -> std::optional<std::uint64_t>
+auto MemoryMonitor::ParseVmRSS(std::string_view status) noexcept -> std::optional<std::uint64_t>
 {
-    auto pos = status.find("VmLck:");
+    auto pos = status.find("VmRSS:");
     if (pos == std::string_view::npos) {
         return std::nullopt;
     }
 
     const auto* startIt =
         std::next(status.begin(), static_cast<std::ptrdiff_t>(pos + vmLckPrefixLength));
+
     auto isSpace = [](char c) -> bool { return c == ' ' || c == '\t'; };
     auto isDigit = [](char c) -> bool { return c >= '0' && c <= '9'; };
 
@@ -79,11 +80,11 @@ auto MemoryMonitor::ParseVmLck(std::string_view status) noexcept -> std::optiona
     const char* firstPtr = std::to_address(numStart);
     const char* lastPtr = std::to_address(numEnd);
 
-    std::uint64_t vmLckKb = 0;
-    auto res = std::from_chars(firstPtr, lastPtr, vmLckKb);
+    std::uint64_t vmRssKb = 0;
+    auto res = std::from_chars(firstPtr, lastPtr, vmRssKb);
 
     if (res.ec == std::errc()) {
-        return vmLckKb;
+        return vmRssKb;
     }
 
     return std::nullopt;
@@ -96,28 +97,29 @@ auto MemoryMonitor::CheckMemory() noexcept -> void
 
     if (bytesRead > 0) {
         std::string_view status(buffer.data(), bytesRead);
-        auto vmLckKb = ParseVmLck(status);
+        auto vmRssKb = ParseVmRSS(status);
 
-        if (vmLckKb.has_value()) {
-            std::uint64_t vmLckBytes = *vmLckKb * bytesInKb;
-            bool exceeded = vmLckBytes >= memoryLimitBytes;
+        if (vmRssKb.has_value()) {
+            std::uint64_t vmRssBytes = *vmRssKb * bytesInKb;
+            bool exceeded = vmRssBytes >= memoryLimitBytes;
 
             bool currentlyExceeded = isQuotaExceeded.load(std::memory_order_relaxed);
 
             if (exceeded && !currentlyExceeded) {
                 BC_WARN(
-                    "CRITICAL: Locked memory ({} bytes) exceeded quota! Dropping new connections.",
-                    vmLckBytes);
+                    "CRITICAL: Resident memory ({} bytes) exceeded quota! Dropping new connections.",
+                    vmRssBytes);
             }
 
             if (!exceeded && currentlyExceeded) {
-                BC_INFO("Locked memory ({} bytes) dropped below quota. Accepting connections.",
-                        vmLckBytes);
+                BC_INFO(
+                    "Resident memory ({} bytes) dropped below quota. Accepting connections.",
+                    vmRssBytes);
             }
 
             if (exceeded != currentlyExceeded) {
                 isQuotaExceeded.store(exceeded, std::memory_order_relaxed);
-            };
+            }
         }
     }
 }

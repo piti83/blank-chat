@@ -26,7 +26,7 @@ private:
     auto CheckMemory() noexcept -> void;
 
     [[nodiscard]] static auto ReadStatusFile(std::span<char> buffer) noexcept -> std::size_t;
-    [[nodiscard]] static auto ParseVmLck(std::string_view status) noexcept
+    [[nodiscard]] static auto ParseVmRSS(std::string_view status) noexcept
         -> std::optional<std::uint64_t>;
     [[nodiscard]] static auto CalculateMemoryLimit(std::uint8_t percent) noexcept -> std::uint64_t;
 
