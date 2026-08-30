@@ -41,8 +41,7 @@ TEST_F(MemoryMonitorTest, ParseVmRSS_FailsSecurelyOnMalformedInput)
 
 TEST_F(MemoryMonitorTest, ParseVmRSS_FailsSecurelyOnIntegerOverflow)
 {
-    EXPECT_FALSE(
-        MemoryMonitor::ParseVmRSS("VmRSS: 999999999999999999999999999999").has_value());
+    EXPECT_FALSE(MemoryMonitor::ParseVmRSS("VmRSS: 999999999999999999999999999999").has_value());
 }
 
 TEST_F(MemoryMonitorTest, ReadStatusFile_SucceedsOnNormalExecution)

@@ -106,15 +106,14 @@ auto MemoryMonitor::CheckMemory() noexcept -> void
             bool currentlyExceeded = isQuotaExceeded.load(std::memory_order_relaxed);
 
             if (exceeded && !currentlyExceeded) {
-                BC_WARN(
-                    "CRITICAL: Resident memory ({} bytes) exceeded quota! Dropping new connections.",
-                    vmRssBytes);
+                BC_WARN("CRITICAL: Resident memory ({} bytes) exceeded quota! Dropping new "
+                        "connections.",
+                        vmRssBytes);
             }
 
             if (!exceeded && currentlyExceeded) {
-                BC_INFO(
-                    "Resident memory ({} bytes) dropped below quota. Accepting connections.",
-                    vmRssBytes);
+                BC_INFO("Resident memory ({} bytes) dropped below quota. Accepting connections.",
+                        vmRssBytes);
             }
 
             if (exceeded != currentlyExceeded) {
