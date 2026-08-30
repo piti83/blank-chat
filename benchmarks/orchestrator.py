@@ -183,8 +183,8 @@ def setup_client(vm_name: str, onion_address: str, mode: str):
         "echo 'onion_port = 80' >> /etc/blank-chat/client_config.toml",
         "echo '[obfuscation]' >> /etc/blank-chat/client_config.toml",
         f"echo 'mode = \"{mode}\"' >>/etc/blank-chat/client_config.toml",
-        "echo 'cbr_interval_ms = 1000' >> /etc/blank-chat/client_config.toml",
-        "echo 'poisson_lambda = 1.0' >> /etc/blank-chat/client_config.toml",
+        "echo 'cbr_interval_ms = 100' >> /etc/blank-chat/client_config.toml",
+        "echo 'poisson_lambda = 10.0' >> /etc/blank-chat/client_config.toml",
         "echo '[storage]' >> /etc/blank-chat/client_config.toml",
         "echo 'contacts_file_path = \"contacts.json\"' >> /etc/blank-chat/client_config.toml",
         "echo '[security]' >> /etc/blank-chat/client_config.toml",
@@ -327,15 +327,23 @@ def run_simulation(c1_child, c2_child, profile: str, duration_min: int):
                 time.sleep(1)
 
     elif profile == "intensive":
-        print_info(f"Running INTENSIVE profile for {duration_min} minutes (continuous load)...")
+        print_info(f"Running INTENSIVE profile for {duration_min} minutes (150 bytes bidirectional, continuous load)...")
         counter = 1
         while time.time() < end_time:
-            msg_max = f"MSG_{counter}_".ljust(200, "B")
-            c1_child.send(f"send client2 {msg_max}\n")
+            msg_c1 = f"MSG_{counter}_FROM_CLIENT_1_".ljust(150, "A")
+            msg_c2 = f"MSG_{counter}_FROM_CLIENT_2_".ljust(150, "A")
+
+            c1_child.send(f"send client2 {msg_c1}\n")
             c1_child.expect(r"> ", timeout=5)
+
+            c2_child.send(f"send client1 {msg_c2}\n")
+            c2_child.expect(r"> ", timeout=5)
+
             counter += 1
-            flush_buffers(clients)
-            time.sleep(0.1)
+
+            for _ in range(1):
+                flush_buffers(clients)
+                time.sleep(1)
 
 def main():
     parser = argparse.ArgumentParser(description="Blank Chat Test Orchestrator")

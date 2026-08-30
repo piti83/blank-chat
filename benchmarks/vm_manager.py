@@ -46,7 +46,7 @@ def create_and_start_vm(vm_name: str, disk_path: Path):
         "virt-install",
         "--connect", "qemu:///system",
         "--name", vm_name,
-        "--memory", "2048",
+        "--memory", "8192",
         "--vcpus", "2",
         "--disk", f"path={disk_path},format=qcow2,bus=sata",
         "--import",
