@@ -73,3 +73,5 @@ compile_commands.json
 
 *.jsonl
 *.pcap
+
+benchmarks/results/**

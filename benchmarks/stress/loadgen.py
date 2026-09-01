@@ -173,6 +173,10 @@ def parse_args():
     p.add_argument("--post-rejection-hold",type=float,default=5.0)
     p.add_argument("--timeout",type=float,default=30.0)
     p.add_argument("--probe-timeout",type=float,default=10.0)
+    p.add_argument("--connect-retries",type=int,default=5,
+                   help="maximum attempts for each authenticated client connection")
+    p.add_argument("--retry-delay",type=float,default=1.0,
+                   help="delay in seconds between transient connection retries")
     p.add_argument("--summary-json")
     p.add_argument(
         "--setup-only",
@@ -184,8 +188,67 @@ def parse_args():
     if not 1<=a.payload_size<=MAX_PAYLOAD_SIZE:p.error("--payload-size out of range")
     if a.max_sent_mib<=0:p.error("--max-sent-mib must be > 0")
     if a.rejection_confirmations<=0:p.error("--rejection-confirmations must be > 0")
+    if a.connect_retries<=0:p.error("--connect-retries must be > 0")
+    if a.retry_delay<0:p.error("--retry-delay must be >= 0")
     if "://" in a.onion:p.error("--onion must be hostname")
     return a
+
+
+def establish_authenticated_clients(args,summary):
+    clients=[]
+    for client_no in range(1,args.clients+1):
+        last_exc=None
+        for attempt in range(1,args.connect_retries+1):
+            try:
+                sock=create_authenticated_client(args)
+                clients.append(sock)
+                summary.clients_connected=len(clients)
+                if len(clients)%10==0 or len(clients)==args.clients:
+                    print(f"[+] Authenticated clients: {len(clients)}/{args.clients}")
+                break
+            except (socket.timeout,OSError,SocksError,ConnectionError) as exc:
+                last_exc=exc
+                print(
+                    f"[!] Client {client_no}/{args.clients} connection attempt "
+                    f"{attempt}/{args.connect_retries} failed: {exc}",
+                    file=sys.stderr,
+                )
+                if attempt<args.connect_retries and args.retry_delay:
+                    time.sleep(args.retry_delay)
+        else:
+            for sock in clients:
+                try:sock.shutdown(socket.SHUT_RDWR)
+                except OSError:pass
+                sock.close()
+            raise LoadGenError(
+                f"client {client_no}/{args.clients} could not authenticate after "
+                f"{args.connect_retries} attempts: {last_exc}"
+            )
+    return clients
+
+
+def baseline_probe_with_retries(args,summary):
+    last_status="indeterminate"
+    last_detail="no probe attempted"
+    for attempt in range(1,args.connect_retries+1):
+        status,detail=probe_connection(args)
+        last_status,last_detail=status,detail
+        summary.probes.append(ProbeRecord(0,status,detail))
+        print(
+            f"[i] Baseline probe attempt {attempt}/{args.connect_retries}: "
+            f"{status} ({detail})"
+        )
+        if status=="accepted":
+            return
+        if status=="rejected":
+            raise LoadGenError("baseline probe was rejected before load generation")
+        if attempt<args.connect_retries and args.retry_delay:
+            time.sleep(args.retry_delay)
+    raise LoadGenError(
+        f"baseline probe did not become accepted after {args.connect_retries} attempts: "
+        f"{last_status} ({last_detail})"
+    )
+
 
 def main():
     args=parse_args()
@@ -198,15 +261,10 @@ def main():
     started=time.monotonic()
     try:
         print(f"[i] Establishing {args.clients} authenticated connections")
-        for _ in range(args.clients):
-            clients.append(create_authenticated_client(args))
-            summary.clients_connected=len(clients)
-            if len(clients)%10==0 or len(clients)==args.clients:
-                print(f"[+] Authenticated clients: {len(clients)}/{args.clients}")
-        status,detail=probe_connection(args)
-        summary.probes.append(ProbeRecord(0,status,detail))
-        print(f"[i] Probe round 0: {status} ({detail})")
-        if status!="accepted": raise LoadGenError("baseline probe not accepted")
+        clients=establish_authenticated_clients(args,summary)
+        # Let failed/retried Tor streams propagate their close before measurement.
+        time.sleep(1.0)
+        baseline_probe_with_retries(args,summary)
         if args.setup_only:
             summary.liveness_ok=verify_existing_session(clients[0])
             if not summary.liveness_ok:
