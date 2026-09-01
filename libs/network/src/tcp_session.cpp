@@ -45,22 +45,38 @@ auto TcpSession::DoRead() -> void
 
             std::span<const std::uint8_t> dataSpan(readBuffer.data(), bytesTransferred);
 
-            parser.FeedBytes(dataSpan);
+            while (!dataSpan.empty()) {
+                const auto consumed = parser.FeedBytes(dataSpan);
+                dataSpan = dataSpan.subspan(consumed);
 
-            if (parser.HasError()) {
-                BC_WARN("Network parser error (potential malformed frame). Dropping connection.");
+                if (parser.HasError()) {
+                    BC_WARN(
+                        "Network parser error (potential malformed frame). Dropping connection.");
 
-                ErrorCode closeEc;
-                // NOLINTNEXTLINE(cert-err33-c, bugprone-unused-return-value)
-                socket.close(closeEc);
+                    ErrorCode closeEc;
+                    // NOLINTNEXTLINE(cert-err33-c, bugprone-unused-return-value)
+                    socket.close(closeEc);
 
-                if (closeEc) {
-                    BC_TRACE("Socket close error after parser error: {}", closeEc.message());
+                    if (closeEc) {
+                        BC_TRACE("Socket close error after parser error: {}", closeEc.message());
+                    }
+                    return;
                 }
-                return;
-            }
 
-            ProcessExtractedFrame();
+                ProcessExtractedFrame();
+
+                if (!socket.is_open()) {
+                    return;
+                }
+
+                if (consumed == 0) {
+                    BC_WARN("Frame parser consumed zero bytes. Dropping connection.");
+
+                    ErrorCode closeEc;
+                    socket.close(closeEc);
+                    return;
+                }
+            }
 
             if (socket.is_open()) {
                 DoRead();

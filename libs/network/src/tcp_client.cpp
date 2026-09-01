@@ -198,22 +198,33 @@ auto TcpClient::DoRead() -> void
                 return;
             }
 
-            parser.FeedBytes(std::span<const std::uint8_t>(readBuffer.data(), bytesTransferred));
+            std::span<const std::uint8_t> dataSpan(readBuffer.data(), bytesTransferred);
 
-            if (parser.HasError()) {
-                BC_ERROR("Frame parser entered error state. Dropping connection.");
-                Disconnect();
-                return;
-            }
+            while (!dataSpan.empty()) {
+                const auto consumed = parser.FeedBytes(dataSpan);
+                dataSpan = dataSpan.subspan(consumed);
 
-            while (auto frameOpt = parser.TryExtractFrame()) {
-                auto frame = std::move(*frameOpt);
+                if (parser.HasError()) {
+                    BC_ERROR("Frame parser entered error state. Dropping connection.");
+                    Disconnect();
+                    return;
+                }
 
-                if (frame.GetActionType() == bc::protocol::ActionType::AUTH_CHALLENGE) {
-                    HandleAuthChallenge(frame.GetPayload());
-                    isAuthenticated = true;
-                } else if (isAuthenticated && frameReceiver) {
-                    frameReceiver(std::move(frame));
+                while (auto frameOpt = parser.TryExtractFrame()) {
+                    auto frame = std::move(*frameOpt);
+
+                    if (frame.GetActionType() == bc::protocol::ActionType::AUTH_CHALLENGE) {
+                        HandleAuthChallenge(frame.GetPayload());
+                        isAuthenticated = true;
+                    } else if (isAuthenticated && frameReceiver) {
+                        frameReceiver(std::move(frame));
+                    }
+                }
+
+                if (consumed == 0) {
+                    BC_ERROR("Frame parser consumed zero bytes. Dropping connection.");
+                    Disconnect();
+                    return;
                 }
             }
 
