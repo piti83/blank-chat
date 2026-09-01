@@ -73,6 +73,7 @@ auto TcpSession::DoRead() -> void
                     BC_WARN("Frame parser consumed zero bytes. Dropping connection.");
 
                     ErrorCode closeEc;
+                    // NOLINTNEXTLINE(cert-err33-c, bugprone-unused-return-value)
                     socket.close(closeEc);
                     return;
                 }
