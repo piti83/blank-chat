@@ -314,6 +314,12 @@ auto Repl::GetNextFrameForCBR() -> bc::protocol::Frame
 
 auto Repl::OnFrameReceived(bc::protocol::Frame&& frame) -> void
 {
+    auto actionType = frame.GetActionType();
+
+    if (actionType == bc::protocol::ActionType::POLL) {
+        return;
+    }
+
     auto rxId = frame.GetMailboxID();
     std::string alias = addressBook.GetAliasByRxMailboxId(rxId);
 
@@ -327,7 +333,6 @@ auto Repl::OnFrameReceived(bc::protocol::Frame&& frame) -> void
         return;
     }
 
-    auto actionType = frame.GetActionType();
     bool usedOldKey = (contact->oldRxMailboxId.has_value() && rxId == *contact->oldRxMailboxId);
     auto payload = std::move(frame).ExtractPayload();
 
