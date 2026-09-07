@@ -114,9 +114,18 @@ def authenticate(sock):
         raise ProtocolError("auth validation failed")
 
 def create_authenticated_client(args):
-    sock=socks5_connect(args.socks_host,args.socks_port,args.onion,args.target_port,args.timeout)
+    sock=socks5_connect(
+        args.socks_host,
+        args.socks_port,
+        args.onion,
+        args.target_port,
+        args.timeout
+    )
     try:
         authenticate(sock)
+
+        sock.settimeout(args.send_timeout)
+
         return sock
     except Exception:
         sock.close()
@@ -145,14 +154,23 @@ def send_parallel_round(pool,clients,frame):
     futures=[pool.submit(c.sendall,frame) for c in clients]
     for f in as_completed(futures): f.result()
 
-def verify_existing_session(sock):
+def verify_existing_session(sock, timeout):
     mailbox=os.urandom(MAILBOX_SIZE)
+    old_timeout=sock.gettimeout()
+
     try:
+        sock.settimeout(timeout)
+
         send_frame(sock,ACTION_POLL,mailbox)
         a,m,p=recv_frame(sock)
+
         return a==ACTION_POLL and m==mailbox and p==b""
+
     except (OSError,ConnectionError,ProtocolError):
         return False
+
+    finally:
+        sock.settimeout(old_timeout)
 
 def write_summary(path,summary):
     if not path: return
@@ -173,6 +191,12 @@ def parse_args():
     p.add_argument("--post-rejection-hold",type=float,default=5.0)
     p.add_argument("--timeout",type=float,default=30.0)
     p.add_argument("--probe-timeout",type=float,default=10.0)
+    p.add_argument(
+        "--send-timeout",
+        type=float,
+        default=300.0,
+        help="timeout for sustained stress-traffic send operations",
+    )
     p.add_argument("--connect-retries",type=int,default=5,
                    help="maximum attempts for each authenticated client connection")
     p.add_argument("--retry-delay",type=float,default=1.0,
@@ -266,7 +290,7 @@ def main():
         time.sleep(1.0)
         baseline_probe_with_retries(args,summary)
         if args.setup_only:
-            summary.liveness_ok=verify_existing_session(clients[0])
+            summary.liveness_ok=verify_existing_session(clients[0], args.probe_timeout)
             if not summary.liveness_ok:
                 print("[!] Setup succeeded, but existing session liveness check failed",file=sys.stderr)
                 return 3
@@ -294,7 +318,7 @@ def main():
         if not summary.rejection_detected:
             print("[!] Safety stop reached before rejection",file=sys.stderr); return 2
         time.sleep(args.post_rejection_hold)
-        summary.liveness_ok=verify_existing_session(clients[0])
+        summary.liveness_ok=verify_existing_session(clients[0], args.probe_timeout)
         if not summary.liveness_ok:
             print("[!] Existing session not responsive",file=sys.stderr); return 3
         print("[+] Quota rejection confirmed and existing session is responsive")
