@@ -2,6 +2,7 @@
 #define BC_LIBS_NETWORK_INCLUDE_TCPSERVER_H_
 
 #include <cstdint>
+#include <string_view>
 
 #include <boost/asio.hpp>
 
@@ -14,8 +15,8 @@ namespace bc::network {
 class TcpServer
 {
 public:
-    TcpServer(IOContext& ioContext, std::uint16_t port, bc::protocol::IFrameHandler& handler,
-              std::uint8_t memoryQuotaPercent);
+    TcpServer(IOContext& ioContext, std::string_view host, std::uint16_t port,
+              bc::protocol::IFrameHandler& handler, std::uint8_t memoryQuotaPercent);
     ~TcpServer() = default;
 
     TcpServer(const TcpServer&) = delete;

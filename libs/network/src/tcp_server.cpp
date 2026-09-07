@@ -1,24 +1,44 @@
 #include "network/tcp_server.h"
 
-#include <memory>
-#include <string>
-#include <utility>
+#include <cstdlib>
+#include <iostream>
+#include <string_view>
 
 #include <core/logger.h>
 #include <network/tcp_session.h>
 
 namespace bc::network {
 
-TcpServer::TcpServer(IOContext& ioContext, std::uint16_t port, bc::protocol::IFrameHandler& handler,
-                     std::uint8_t memoryQuotaPercent)
-    : acceptor(ioContext, boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), port)),
-      handler(handler), memoryMonitor(ioContext, memoryQuotaPercent)
+namespace {
+
+[[nodiscard]] auto MakeListenEndpoint(std::string_view host, std::uint16_t port) -> Endpoint
+{
+    ErrorCode errorCode;
+    auto address = boost::asio::ip::make_address(host, errorCode);
+
+    if (errorCode) {
+        std::cerr << "Invalid TCP listen host '" << host << "': " << errorCode.message() << '\n';
+        std::abort();
+    }
+
+    return {address, port};
+}
+
+} // namespace
+
+TcpServer::TcpServer(IOContext& ioContext, std::string_view host, std::uint16_t port,
+                     bc::protocol::IFrameHandler& handler, std::uint8_t memoryQuotaPercent)
+    : acceptor(ioContext, MakeListenEndpoint(host, port)), handler(handler),
+      memoryMonitor(ioContext, memoryQuotaPercent)
 {
 }
 
 auto TcpServer::Start() -> void
 {
-    BC_INFO("Starting TCP Server on port {}", acceptor.local_endpoint().port());
+    const auto endpoint = acceptor.local_endpoint();
+
+    BC_INFO("Starting TCP Server on {}:{}", endpoint.address().to_string(), endpoint.port());
+
     DoAccept();
 }
 

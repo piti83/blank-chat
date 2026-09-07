@@ -2,7 +2,6 @@
 #include <chrono>
 #include <memory>
 #include <optional>
-#include <thread>
 #include <vector>
 
 #include <boost/asio.hpp>
@@ -122,19 +121,23 @@ TEST_F(TcpServerTest, ConstructorThrowsWhenPortIsAlreadyBound)
     ASSERT_FALSE(ec);
 
     EXPECT_DEATH(
-        { TcpServer server(ioContext, currentTestPort, mockHandler, testQuotaPercent); }, ".*");
+        {
+            TcpServer server(ioContext, "127.0.0.1", currentTestPort, mockHandler,
+                             testQuotaPercent);
+        },
+        ".*");
 }
 
 TEST_F(TcpServerTest, ConstructorSucceedsOnAvailablePort)
 {
-    TcpServer server(ioContext, currentTestPort, mockHandler, testQuotaPercent);
+    TcpServer server(ioContext, "127.0.0.1", currentTestPort, mockHandler, testQuotaPercent);
     server.Start();
 }
 
 TEST_F(TcpServerTest, GracefullyHandlesOperationAbortedOnDestruction)
 {
     std::optional<TcpServer> server;
-    server.emplace(ioContext, currentTestPort, mockHandler, testQuotaPercent);
+    server.emplace(ioContext, "127.0.0.1", currentTestPort, mockHandler, testQuotaPercent);
     server->Start();
 
     server.reset();
@@ -145,7 +148,7 @@ TEST_F(TcpServerTest, GracefullyHandlesOperationAbortedOnDestruction)
 
 TEST_F(TcpServerTest, SurvivesImmediateClientDisconnectionLikePortScanners)
 {
-    TcpServer server(ioContext, currentTestPort, mockHandler, testQuotaPercent);
+    TcpServer server(ioContext, "127.0.0.1", currentTestPort, mockHandler, testQuotaPercent);
     server.Start();
 
     for (int i = 0; i < 50; ++i) {
@@ -166,7 +169,7 @@ TEST_F(TcpServerTest, SurvivesImmediateClientDisconnectionLikePortScanners)
 
 TEST_F(TcpServerTest, AcceptsConnectionsAndProperlyRoutesDataToSessions)
 {
-    TcpServer server(ioContext, currentTestPort, mockHandler, testQuotaPercent);
+    TcpServer server(ioContext, "127.0.0.1", currentTestPort, mockHandler, testQuotaPercent);
     server.Start();
 
     constexpr int clientsCount = 10;
@@ -204,6 +207,22 @@ TEST_F(TcpServerTest, AcceptsConnectionsAndProperlyRoutesDataToSessions)
     PumpIoContext(std::chrono::milliseconds(500));
 
     EXPECT_EQ(mockHandler.pushCallCount.load(), clientsCount);
+}
+
+TEST_F(TcpServerTest, ConstructorFailsOnInvalidListenHost)
+{
+    EXPECT_DEATH(
+        {
+            TcpServer server(ioContext, "invalid-address", currentTestPort, mockHandler,
+                             testQuotaPercent);
+        },
+        "Invalid TCP listen host");
+}
+
+TEST_F(TcpServerTest, ConstructorSucceedsWithWildcardListenHost)
+{
+    TcpServer server(ioContext, "0.0.0.0", currentTestPort, mockHandler, testQuotaPercent);
+    server.Start();
 }
 
 } // namespace bc::network::test
