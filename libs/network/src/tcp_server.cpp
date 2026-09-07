@@ -35,7 +35,7 @@ TcpServer::TcpServer(IOContext& ioContext, std::string_view host, std::uint16_t 
 
 auto TcpServer::Start() -> void
 {
-    const auto endpoint = acceptor.local_endpoint();
+    [[maybe_unused]] const auto endpoint = acceptor.local_endpoint();
 
     BC_INFO("Starting TCP Server on {}:{}", endpoint.address().to_string(), endpoint.port());
 

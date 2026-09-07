@@ -41,28 +41,14 @@ public:
 
 #else
 
-// NOLINTBEGIN(cppcoreguidelines-avoid-do-while)
-#define BC_TRACE(...)                                                                              \
-    do {                                                                                           \
-    } while (0)
-#define BC_DEBUG(...)                                                                              \
-    do {                                                                                           \
-    } while (0)
-#define BC_INFO(...)                                                                               \
-    do {                                                                                           \
-    } while (0)
-#define BC_WARN(...)                                                                               \
-    do {                                                                                           \
-    } while (0)
-#define BC_ERROR(...)                                                                              \
-    do {                                                                                           \
-    } while (0)
-#define BC_CRITICAL(...)                                                                           \
-    do {                                                                                           \
-    } while (0)
+#define BC_TRACE(...) static_cast<void>(0)
+#define BC_DEBUG(...) static_cast<void>(0)
+#define BC_INFO(...) static_cast<void>(0)
+#define BC_WARN(...) static_cast<void>(0)
+#define BC_ERROR(...) static_cast<void>(0)
+#define BC_CRITICAL(...) static_cast<void>(0)
 
 #endif
-// NOLINTEND(cppcoreguidelines-avoid-do-while)
 // NOLINTEND(cppcoreguidelines-macro-usage)
 
 #endif // BC_LIBS_CORE_INCLUDE_LOGGER_H_
