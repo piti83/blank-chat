@@ -34,8 +34,8 @@ TEST_F(FrameTest, CreatePollInitializesProperly)
 
     EXPECT_EQ(frame.GetActionType(), ActionType::POLL);
     EXPECT_EQ(frame.GetMailboxID(), defaultId);
-    EXPECT_EQ(frame.GetPayloadLength(), 0);
-    EXPECT_TRUE(frame.GetPayload().empty());
+    EXPECT_EQ(frame.GetPayloadLength(), paddedControlPayloadSize);
+    EXPECT_EQ(frame.GetPayload(), Payload(paddedControlPayloadSize, 0x00));
 }
 
 TEST_F(FrameTest, MoveConstructorTransfersOwnershipWithoutLeaks)
@@ -86,12 +86,15 @@ TEST_F(FrameTest, SerializePollFrameProducesCorrectBuffer)
     expected.push_back(0x02);
     expected.insert(expected.end(), defaultId.begin(), defaultId.end());
 
-    expected.push_back(0x00);
-    expected.push_back(0x00);
+    expected.push_back(0xDD);
+    expected.push_back(0x01);
     expected.push_back(0x00);
     expected.push_back(0x00);
 
+    expected.insert(expected.end(), paddedControlPayloadSize, 0x00);
+
     EXPECT_EQ(buffer, expected);
+    EXPECT_EQ(buffer.size(), torCellPayloadSize);
 }
 
 TEST_F(FrameTest, SerializeVerifiesLittleEndianEncoding)

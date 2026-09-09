@@ -13,7 +13,7 @@ auto Frame::CreatePush(const MailboxID& mailboxId, Payload&& payload) -> Frame
 
 auto Frame::CreatePoll(const MailboxID& mailboxId) -> Frame
 {
-    return {ActionType::POLL, mailboxId, Payload{}};
+    return {ActionType::POLL, mailboxId, Payload(paddedControlPayloadSize, 0x00)};
 }
 
 auto Frame::CreateAck(const MailboxID& mailboxId, Payload&& payload) -> Frame
@@ -80,11 +80,19 @@ Frame::Frame(ActionType action, const MailboxID& mailboxId, Payload&& payload)
 
 auto Frame::CreateAuthChallenge(const MailboxID& id, Payload challengeData) -> Frame
 {
+    if (challengeData.size() < paddedControlPayloadSize) {
+        challengeData.resize(paddedControlPayloadSize, 0x00);
+    }
+
     return {ActionType::AUTH_CHALLENGE, id, std::move(challengeData)};
 }
 
 auto Frame::CreateAuthResponse(const MailboxID& id, Payload responseData) -> Frame
 {
+    if (responseData.size() < paddedControlPayloadSize) {
+        responseData.resize(paddedControlPayloadSize, 0x00);
+    }
+
     return {ActionType::AUTH_RESPONSE, id, std::move(responseData)};
 }
 

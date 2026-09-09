@@ -55,8 +55,8 @@ TEST_F(FrameParserTest, ParsesCompletePollFrameInOneGo)
 
     EXPECT_EQ(extracted->GetActionType(), ActionType::POLL);
     EXPECT_EQ(extracted->GetMailboxID(), testId);
-    EXPECT_EQ(extracted->GetPayloadLength(), 0);
-    EXPECT_TRUE(extracted->GetPayload().empty());
+    EXPECT_EQ(extracted->GetPayloadLength(), paddedControlPayloadSize);
+    EXPECT_EQ(extracted->GetPayload(), Payload(paddedControlPayloadSize, 0x00));
 }
 
 TEST_F(FrameParserTest, ParsesFrameByteByByteSimulatingTcpFragmentation)

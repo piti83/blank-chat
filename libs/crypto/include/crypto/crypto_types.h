@@ -17,7 +17,7 @@ static constexpr std::size_t keySize = 32;
 static constexpr std::size_t nonceSize = 24;
 static constexpr std::size_t macSize = 16;
 
-static constexpr std::size_t torCellPayloadSize = 498;
+static constexpr std::size_t torCellPayloadSize = bc::protocol::torCellPayloadSize;
 static constexpr std::size_t cryptoOverhead = nonceSize + macSize;
 static constexpr std::size_t totalFixedOverhead = bc::protocol::headerSize + cryptoOverhead;
 static constexpr std::uint8_t paddingMarker = 0x80;

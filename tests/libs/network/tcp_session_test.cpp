@@ -101,16 +101,20 @@ protected:
         ASSERT_TRUE(frameOpt.has_value());
         ASSERT_EQ(frameOpt->GetActionType(), bc::protocol::ActionType::AUTH_CHALLENGE);
 
-        auto challenge = frameOpt->GetPayload();
+        const auto& challenge = frameOpt->GetPayload();
         std::uint64_t nonce = 0;
 
         if (validPoW) {
+            ASSERT_GE(challenge.size(), challengSize);
+
             std::string hashHex;
-            std::vector<std::uint8_t> combined = challenge;
-            combined.resize(challenge.size() + sizeof(nonce));
+            std::vector<std::uint8_t> combined(challenge.begin(), challenge.begin() + challengSize);
+
+            combined.resize(challengSize + sizeof(nonce));
+
             do {
                 nonce++;
-                std::memcpy(combined.data() + challenge.size(), &nonce, sizeof(nonce));
+                std::memcpy(combined.data() + challengSize, &nonce, sizeof(nonce));
                 hashHex = bc::core::HashPayload(combined);
             } while (!hashHex.starts_with("000"));
         } else {

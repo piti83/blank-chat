@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source $PROJECT_ROOT/../yocto-dev/sdk/environment-setup-core2-64-poky-linux
 
 alias build="python3 $PROJECT_ROOT/scripts/build.py"
 alias run="python3 $PROJECT_ROOT/scripts/run.py"

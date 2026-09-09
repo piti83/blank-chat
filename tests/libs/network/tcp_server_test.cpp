@@ -84,13 +84,20 @@ protected:
             }
         }
 
+        if (challenge.size() < challengSize) {
+            return false;
+        }
+
         std::uint64_t nonce = 0;
         std::string hashHex;
-        std::vector<std::uint8_t> combined = challenge;
-        combined.resize(challenge.size() + sizeof(nonce));
+
+        std::vector<std::uint8_t> combined(challenge.begin(), challenge.begin() + challengSize);
+
+        combined.resize(challengSize + sizeof(nonce));
+
         do {
             nonce++;
-            std::memcpy(combined.data() + challenge.size(), &nonce, sizeof(nonce));
+            std::memcpy(combined.data() + challengSize, &nonce, sizeof(nonce));
             hashHex = bc::core::HashPayload(combined);
         } while (!hashHex.starts_with("000"));
 

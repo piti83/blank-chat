@@ -15,6 +15,7 @@
 #include <core/string_utils.h>
 #include <network/tcp_client.h>
 #include <protocol/frame.h>
+#include <protocol/frame_parser.h>
 #include <protocol/mailbox_id.h>
 
 namespace bc::network::test {
@@ -101,9 +102,34 @@ protected:
         if (ec)
             return false;
 
-        std::vector<std::uint8_t> respBuffer(29);
-        boost::asio::read(sock, boost::asio::buffer(respBuffer), ec);
-        return !ec;
+        bc::protocol::FrameParser parser;
+        std::vector<std::uint8_t> respBuffer(1024);
+
+        while (true) {
+            std::size_t bytes = sock.read_some(boost::asio::buffer(respBuffer), ec);
+            if (ec) {
+                return false;
+            }
+
+            std::span<const std::uint8_t> data(respBuffer.data(), bytes);
+
+            while (!data.empty()) {
+                const auto consumed = parser.FeedBytes(data);
+                data = data.subspan(consumed);
+
+                if (parser.HasError()) {
+                    return false;
+                }
+
+                if (auto frame = parser.TryExtractFrame()) {
+                    return frame->GetActionType() == bc::protocol::ActionType::AUTH_RESPONSE;
+                }
+
+                if (consumed == 0) {
+                    return false;
+                }
+            }
+        }
     }
 };
 

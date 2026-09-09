@@ -160,11 +160,23 @@ auto TcpSession::HandleAuthResponse(const bc::protocol::Frame& frame) -> bool
         return false;
     }
 
-    auto payload = frame.GetPayload();
-    std::uint64_t nonce = 0;
-    if (payload.size() == sizeof(nonce)) {
-        std::memcpy(&nonce, payload.data(), sizeof(nonce));
+    const auto& payload = frame.GetPayload();
+
+    if (payload.size() < sizeof(std::uint64_t)) {
+        BC_WARN("AUTH_RESPONSE payload is too small. Dropping connection.");
+
+        boost::system::error_code closeEc;
+        [[maybe_unused]] auto retEc = socket.close(closeEc);
+
+        if (closeEc) {
+            BC_TRACE("Socket closed with underlying OS message: {}", closeEc.message());
+        }
+
+        return false;
     }
+
+    std::uint64_t nonce = 0;
+    std::memcpy(&nonce, payload.data(), sizeof(nonce));
 
     std::vector<std::uint8_t> combined = currentChallenge;
     combined.resize(currentChallenge.size() + sizeof(nonce));

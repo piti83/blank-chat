@@ -259,12 +259,19 @@ auto TcpClient::DoWrite() -> void
 
 auto TcpClient::HandleAuthChallenge(const bc::protocol::Payload& challenge) -> void
 {
+    if (challenge.size() < challengSize) {
+        BC_WARN("AUTH_CHALLENGE payload is too small. Dropping connection.");
+        Disconnect();
+        return;
+    }
+
     std::uint64_t nonce = 0;
-    std::vector<std::uint8_t> combined = challenge;
-    combined.resize(challenge.size() + sizeof(nonce));
+
+    std::vector<std::uint8_t> combined(challenge.begin(), challenge.begin() + challengSize);
+    combined.resize(challengSize + sizeof(nonce));
 
     std::span<std::uint8_t> combinedSpan(combined);
-    auto nonceDest = combinedSpan.subspan(challenge.size(), sizeof(nonce));
+    auto nonceDest = combinedSpan.subspan(challengSize, sizeof(nonce));
 
     while (true) {
         nonce++;
@@ -278,6 +285,7 @@ auto TcpClient::HandleAuthChallenge(const bc::protocol::Payload& challenge) -> v
 
     std::vector<std::uint8_t> responsePayload(sizeof(nonce));
     std::memcpy(responsePayload.data(), &nonce, sizeof(nonce));
+
     bc::protocol::MailboxID dummy;
     dummy.Fill(0);
 

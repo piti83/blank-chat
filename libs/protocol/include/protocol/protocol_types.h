@@ -1,6 +1,7 @@
 #ifndef BC_LIBS_PROTOCOL_INCLUDE_PROTOCOLTYPES_H_
 #define BC_LIBS_PROTOCOL_INCLUDE_PROTOCOLTYPES_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <vector>
 
@@ -10,9 +11,11 @@ using Payload = std::vector<std::uint8_t>;
 using PayloadLength = std::uint32_t;
 using RawFrame = std::vector<std::uint8_t>;
 
-constexpr std::uint8_t actionTypeSize = 1;
-constexpr std::uint8_t mailboxIdSize = 16;
+static constexpr std::uint8_t actionTypeSize = 1;
+static constexpr std::uint8_t mailboxIdSize = 16;
 static constexpr std::size_t headerSize = actionTypeSize + mailboxIdSize + sizeof(PayloadLength);
+static constexpr std::size_t torCellPayloadSize = 498;
+static constexpr std::size_t paddedControlPayloadSize = torCellPayloadSize - headerSize;
 static constexpr PayloadLength maxPayloadSize = 1024 * 1024;
 
 enum class ActionType : std::uint8_t {
