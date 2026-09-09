@@ -5,6 +5,7 @@
 #include <limits>
 #include <mutex>
 #include <optional>
+#include <span>
 
 #include <sodium.h>
 
@@ -98,6 +99,7 @@ auto Repl::HandleConnect() -> void
     std::cout << "Connecting via Tor proxy...\n";
     if (client.Connect(config.relayConfig.onionAddress, config.relayConfig.onionPort)) {
         std::cout << "Successfully connected.\n";
+        connected = true;
         contactAliases = addressBook.GetAllAliases();
 
         auto obfuscationTimer = bc::domain::client::CreateObfuscationTimer(
@@ -117,6 +119,8 @@ auto Repl::HandleConnect() -> void
             auto workGuard = boost::asio::make_work_guard(ioContext);
             ioContext.run();
         });
+
+        StartPendingInitialPfs();
     } else {
         std::cout << "Failed to connect.\n";
     }
@@ -137,6 +141,17 @@ auto Repl::HandleSend() -> void
         return;
     }
 
+    if (!contact->initialPfsComplete) {
+        MaybeStartInitialPfs(alias, contact);
+
+        std::cout << "Secure session with '" << alias
+                  << "' is not ready yet. Initial PFS handshake is still pending. "
+                     "Message was not sent.\n";
+
+        sodium_memzero(rawPayload.data(), rawPayload.size());
+        return;
+    }
+
     std::string msgId = bc::core::HashPayload(rawPayload);
     bc::domain::client::CacheEntry entry{
         .id = msgId,
@@ -153,33 +168,8 @@ auto Repl::HandleSend() -> void
 
         PrintThreadSafe("PFS threshold reached. Initiating background key rotation...\n>>> ");
 
-        auto ephemeralOpt = bc::crypto::EphemeralKey::Generate();
-        if (!ephemeralOpt) {
-            BC_ERROR("Failed to generate ephemeral key");
-            return;
-        }
-
-        std::array<std::uint8_t, bc::domain::client::cryptoSignBytes> signature{};
-        crypto_sign_detached(signature.data(), nullptr, ephemeralOpt->GetPublicKey().data(),
-                             ephemeralOpt->GetPublicKey().size(),
-                             identity.GetSecretKeySpan().data());
-
-        auto reqPayload = bc::domain::client::PayloadFormatter::BuildPfsRotateRequest(
-            ephemeralOpt->GetPublicKey(), signature);
-
-        auto ciphertextOpt =
-            bc::crypto::SymmetricCipher::EncryptWithPadding(contact->txKey.AsSpan(), reqPayload);
-        sodium_memzero(reqPayload.data(), reqPayload.size());
-
-        if (ciphertextOpt) {
-            auto frame =
-                bc::protocol::Frame::CreatePush(contact->txMailboxId, std::move(*ciphertextOpt));
-            std::scoped_lock lock(outboxMutex);
-            outbox.push(std::move(frame));
-
-            contact->pfsState = bc::domain::client::PfsState::ROTATION_REQUESTED;
-            contact->pendingEphemeralKey = std::move(*ephemeralOpt);
-            contact->messageCounter = 0;
+        if (!InitiatePfsRotation(alias, contact)) {
+            BC_ERROR("Failed to initiate periodic PFS rotation with '{}'", alias);
         }
     }
 
@@ -273,6 +263,9 @@ auto Repl::HandleAddContact() -> void
             if (std::ranges::find(contactAliases, alias) == contactAliases.end()) {
                 contactAliases.push_back(alias);
             }
+        }
+        if (auto* contact = addressBook.GetMutableContact(alias)) {
+            MaybeStartInitialPfs(alias, contact);
         }
 
     } else {
@@ -396,14 +389,35 @@ auto Repl::HandlePfsRotateRequest(std::string_view alias, bc::domain::client::Co
         return;
     }
 
+    const bool initialRotation = !contact->initialPfsComplete;
+
+    if (initialRotation && IsInitialPfsInitiator(*contact)) {
+        PrintThreadSafe(std::format("Ignoring simultaneous initial PFS request from {}. "
+                                    "Local identity is the deterministic initiator.\n>>> ",
+                                    alias));
+
+        MaybeStartInitialPfs(alias, contact);
+        return;
+    }
+
     auto myEphemeralOpt = bc::crypto::EphemeralKey::Generate();
     if (!myEphemeralOpt) {
         return;
     }
 
+    std::array<std::uint8_t, bc::crypto::publicKeySize * 2> ackSignedData{};
+    std::span<std::uint8_t> ackSignedSpan{ackSignedData};
+
+    std::ranges::copy(reqDataOpt->ephemeralPublicKey,
+                      ackSignedSpan.first(bc::crypto::publicKeySize).begin());
+
+    std::ranges::copy(myEphemeralOpt->GetPublicKey(),
+                      ackSignedSpan.last(bc::crypto::publicKeySize).begin());
+
     std::array<std::uint8_t, bc::domain::client::cryptoSignBytes> mySignature{};
-    crypto_sign_detached(mySignature.data(), nullptr, myEphemeralOpt->GetPublicKey().data(),
-                         myEphemeralOpt->GetPublicKey().size(), identity.GetSecretKeySpan().data());
+
+    crypto_sign_detached(mySignature.data(), nullptr, ackSignedData.data(), ackSignedData.size(),
+                         identity.GetSecretKeySpan().data());
 
     auto ackPayload = bc::domain::client::PayloadFormatter::BuildPfsRotateAck(
         myEphemeralOpt->GetPublicKey(), mySignature);
@@ -420,10 +434,13 @@ auto Repl::HandlePfsRotateRequest(std::string_view alias, bc::domain::client::Co
             outbox.push(std::move(frameAck));
         }
 
-        contact->oldRxMailboxId = contact->rxMailboxId;
-        bc::core::SecureBuffer oldKey(bc::crypto::symmetricKeySize);
-        std::ranges::copy(contact->rxKey.AsSpan(), oldKey.AsMutableSpan().begin());
-        contact->oldRxKey = std::move(oldKey);
+        if (!initialRotation) {
+            contact->oldRxMailboxId = contact->rxMailboxId;
+
+            bc::core::SecureBuffer oldKey(bc::crypto::symmetricKeySize);
+            std::ranges::copy(contact->rxKey.AsSpan(), oldKey.AsMutableSpan().begin());
+            contact->oldRxKey = std::move(oldKey);
+        }
 
         std::array<std::uint8_t, crypto_scalarmult_BYTES> sharedSecret{};
         if (crypto_scalarmult(sharedSecret.data(), myEphemeralOpt->GetSecretKeySpan().data(),
@@ -466,6 +483,12 @@ auto Repl::HandlePfsRotateRequest(std::string_view alias, bc::domain::client::Co
                         bc::crypto::symmetricKeySize, contact->rxKey.AsMutableSpan().begin());
 
             contact->messageCounter = 0;
+
+            if (initialRotation) {
+                contact->initialPfsComplete = true;
+                contact->pfsState = bc::domain::client::PfsState::IDLE;
+            }
+
             PrintThreadSafe(std::format("Key & Mailbox rotation completed with {}. Bob is "
                                         "now listening on BOTH mailboxes.\n>>> ",
                                         alias));
@@ -490,9 +513,17 @@ auto Repl::HandlePfsRotateAck(std::string_view alias, bc::domain::client::Contac
         return;
     }
 
-    if (crypto_sign_verify_detached(
-            ackDataOpt->signature.data(), ackDataOpt->ephemeralPublicKey.data(),
-            ackDataOpt->ephemeralPublicKey.size(), contact->publicKey.data()) != 0) {
+    std::array<std::uint8_t, bc::crypto::publicKeySize * 2> ackSignedData{};
+    std::span<std::uint8_t> ackSignedSpan{ackSignedData};
+
+    std::ranges::copy(contact->pendingEphemeralKey->GetPublicKey(),
+                      ackSignedSpan.first(bc::crypto::publicKeySize).begin());
+
+    std::ranges::copy(ackDataOpt->ephemeralPublicKey,
+                      ackSignedSpan.last(bc::crypto::publicKeySize).begin());
+
+    if (crypto_sign_verify_detached(ackDataOpt->signature.data(), ackSignedData.data(),
+                                    ackSignedData.size(), contact->publicKey.data()) != 0) {
         BC_ERROR("Invalid signature on PFS_ROTATE_ACK from {}. Potential MITM attack!", alias);
         return;
     }
@@ -541,6 +572,7 @@ auto Repl::HandlePfsRotateAck(std::string_view alias, bc::domain::client::Contac
         contact->pfsState = bc::domain::client::PfsState::IDLE;
         contact->pendingEphemeralKey = std::nullopt;
         contact->messageCounter = 0;
+        contact->initialPfsComplete = true;
 
         PrintThreadSafe(std::format("\nKey & Mailbox rotation completed with {}. Seamless "
                                     "transition successful!\n>>> ",
@@ -575,8 +607,11 @@ auto Repl::ProcessPushFrame(std::string_view alias, bc::domain::client::Contact*
     auto opcodeOpt = bc::domain::client::PayloadFormatter::ExtractOpcode(*plaintextOpt);
     if (opcodeOpt) {
         if (*opcodeOpt == bc::domain::client::PayloadOpcode::TEXT_MESSAGE) {
-            if (auto msgDataOpt =
-                    bc::domain::client::PayloadFormatter::ParseTextMessage(*plaintextOpt)) {
+            if (!contact->initialPfsComplete) {
+                PrintThreadSafe(
+                    "TEXT_MESSAGE received before initial PFS handshake. Dropping.\n>>> ");
+            } else if (auto msgDataOpt =
+                           bc::domain::client::PayloadFormatter::ParseTextMessage(*plaintextOpt)) {
                 HandleTextMessage(alias, contact, *plaintextOpt, *msgDataOpt);
             }
         } else if (*opcodeOpt == bc::domain::client::PayloadOpcode::PFS_ROTATE_REQUEST) {
@@ -607,6 +642,80 @@ auto Repl::ProcessAckFrame(std::string_view alias, bc::domain::client::Contact* 
     PrintThreadSafe(std::format("\nMessage DELIVERED to {}\n>>> ", alias));
 
     sodium_memzero(plaintextOpt->data(), plaintextOpt->size());
+}
+
+auto Repl::InitiatePfsRotation(std::string_view alias, bc::domain::client::Contact* contact) -> bool
+{
+    if (contact == nullptr || contact->pfsState != bc::domain::client::PfsState::IDLE) {
+        return false;
+    }
+
+    auto ephemeralOpt = bc::crypto::EphemeralKey::Generate();
+    if (!ephemeralOpt) {
+        BC_ERROR("Failed to generate ephemeral key for '{}'", alias);
+        return false;
+    }
+
+    std::array<std::uint8_t, bc::domain::client::cryptoSignBytes> signature{};
+    crypto_sign_detached(signature.data(), nullptr, ephemeralOpt->GetPublicKey().data(),
+                         ephemeralOpt->GetPublicKey().size(), identity.GetSecretKeySpan().data());
+
+    auto reqPayload = bc::domain::client::PayloadFormatter::BuildPfsRotateRequest(
+        ephemeralOpt->GetPublicKey(), signature);
+
+    auto ciphertextOpt =
+        bc::crypto::SymmetricCipher::EncryptWithPadding(contact->txKey.AsSpan(), reqPayload);
+
+    sodium_memzero(reqPayload.data(), reqPayload.size());
+
+    if (!ciphertextOpt) {
+        BC_ERROR("Failed to encrypt PFS rotation request for '{}'", alias);
+        return false;
+    }
+
+    auto frame = bc::protocol::Frame::CreatePush(contact->txMailboxId, std::move(*ciphertextOpt));
+
+    {
+        std::scoped_lock lock(outboxMutex);
+        outbox.push(std::move(frame));
+    }
+
+    contact->pfsState = bc::domain::client::PfsState::ROTATION_REQUESTED;
+    contact->pendingEphemeralKey = std::move(*ephemeralOpt);
+    contact->messageCounter = 0;
+
+    return true;
+}
+
+auto Repl::MaybeStartInitialPfs(std::string_view alias, bc::domain::client::Contact* contact)
+    -> void
+{
+    if (!connected || contact == nullptr || contact->initialPfsComplete ||
+        contact->pfsState != bc::domain::client::PfsState::IDLE ||
+        !IsInitialPfsInitiator(*contact)) {
+        return;
+    }
+
+    if (InitiatePfsRotation(alias, contact)) {
+        PrintThreadSafe(std::format("Starting initial PFS handshake with {}.\n>>> ", alias));
+    }
+}
+
+auto Repl::StartPendingInitialPfs() -> void
+{
+    for (const auto& alias : contactAliases) {
+        if (auto* contact = addressBook.GetMutableContact(alias)) {
+            MaybeStartInitialPfs(alias, contact);
+        }
+    }
+}
+
+auto Repl::IsInitialPfsInitiator(const bc::domain::client::Contact& contact) const noexcept -> bool
+{
+    const auto& ourPublicKey = identity.GetPublicKey();
+
+    return std::ranges::lexicographical_compare(ourPublicKey.begin(), ourPublicKey.end(),
+                                                contact.publicKey.begin(), contact.publicKey.end());
 }
 
 } // namespace bc::cli

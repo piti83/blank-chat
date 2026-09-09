@@ -1,4 +1,5 @@
 #include <filesystem>
+#include <span>
 #include <sstream>
 #include <system_error>
 #include <thread>
@@ -11,8 +12,11 @@
 #include <client/payload_formatter.h>
 #include <crypto/bip39.h>
 #include <crypto/identity_key.h>
+#include <crypto/mailbox_derivation.h>
 #include <crypto/symmetric_cipher.h>
 #include <protocol/frame.h>
+
+#include <sodium/crypto_sign.h>
 
 #define private public
 #include <cli/repl.h>
@@ -156,6 +160,9 @@ TEST_F(ReplTest, HandleSend_SucceedsAndQueuesFrame)
 {
     auto peer = bc::crypto::IdentityKey::Generate();
     testAddressBook.AddContact("alice", peer.GetPublicKey(), std::nullopt);
+    auto* contact = testAddressBook.GetMutableContact("alice");
+    ASSERT_NE(contact, nullptr);
+    contact->initialPfsComplete = true;
     Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
     test_in << "alice Highly Classified Data\n";
     repl.HandleSend();
@@ -248,7 +255,9 @@ TEST_F(ReplTest, OnFrameReceived_Push_ValidSendsAck)
 {
     auto peer = bc::crypto::IdentityKey::Generate();
     testAddressBook.AddContact("alice", peer.GetPublicKey(), std::nullopt);
-    auto* contact = testAddressBook.GetContact("alice");
+    auto* contact = testAddressBook.GetMutableContact("alice");
+    ASSERT_NE(contact, nullptr);
+    contact->initialPfsComplete = true;
     Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
 
     bc::protocol::Payload rawText = {'O', 'K'};
@@ -415,6 +424,356 @@ TEST_F(ReplTest, ProcessPushFrame_TriggersAndCompletesPfsRotationCycle)
         bc::protocol::Frame::CreatePush(contact->rxMailboxId, std::move(*ackCiphertextOpt)));
 
     SUCCEED();
+}
+
+TEST_F(ReplTest, HandleSend_RejectsTextBeforeInitialPfsCompletes)
+{
+    auto peer = bc::crypto::IdentityKey::Generate();
+    ASSERT_TRUE(testAddressBook.AddContact("alice", peer.GetPublicKey(), std::nullopt));
+
+    auto* contact = testAddressBook.GetMutableContact("alice");
+    ASSERT_NE(contact, nullptr);
+    ASSERT_FALSE(contact->initialPfsComplete);
+
+    Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
+
+    test_in << "alice bootstrap must not carry this text\n";
+    repl.HandleSend();
+
+    EXPECT_TRUE(repl.outbox.empty());
+    EXPECT_EQ(contact->messageCounter, 0U);
+
+    auto history = testCache.LoadHistory("alice");
+    EXPECT_TRUE(history.empty());
+
+    EXPECT_NE(test_out.str().find("Initial PFS handshake is still pending"), std::string::npos);
+}
+
+TEST_F(ReplTest, InitialPfsHandshakeDerivesMatchingEphemeralSession)
+{
+    auto peerIdentity = bc::crypto::IdentityKey::Generate();
+
+    bc::domain::client::AddressBook peerAddressBook;
+    peerAddressBook.Initialize("test_contacts_peer.json", peerIdentity);
+
+    bc::domain::client::ConversationCache peerCache;
+    peerCache.Initialize("test_cache_peer");
+
+    ASSERT_TRUE(testAddressBook.AddContact("bob", peerIdentity.GetPublicKey(), std::nullopt));
+    ASSERT_TRUE(peerAddressBook.AddContact("alice", testIdentity->GetPublicKey(), std::nullopt));
+
+    auto* localContact = testAddressBook.GetMutableContact("bob");
+    auto* peerContact = peerAddressBook.GetMutableContact("alice");
+
+    ASSERT_NE(localContact, nullptr);
+    ASSERT_NE(peerContact, nullptr);
+
+    ASSERT_FALSE(localContact->initialPfsComplete);
+    ASSERT_FALSE(peerContact->initialPfsComplete);
+
+    const auto localBootstrapTx = localContact->txMailboxId;
+    const auto localBootstrapRx = localContact->rxMailboxId;
+
+    Repl localRepl(testAddressBook, testCache, *testIdentity, testConfig);
+    Repl peerRepl(peerAddressBook, peerCache, peerIdentity, testConfig);
+
+    localRepl.connected = true;
+    peerRepl.connected = true;
+
+    const bool localInitiates = localRepl.IsInitialPfsInitiator(*localContact);
+    const bool peerInitiates = peerRepl.IsInitialPfsInitiator(*peerContact);
+
+    EXPECT_NE(localInitiates, peerInitiates);
+
+    localRepl.MaybeStartInitialPfs("bob", localContact);
+    peerRepl.MaybeStartInitialPfs("alice", peerContact);
+
+    Repl* initiator = localInitiates ? &localRepl : &peerRepl;
+    Repl* responder = localInitiates ? &peerRepl : &localRepl;
+
+    auto* initiatorContact = localInitiates ? localContact : peerContact;
+    auto* responderContact = localInitiates ? peerContact : localContact;
+
+    ASSERT_EQ(initiator->outbox.size(), 1);
+    EXPECT_TRUE(responder->outbox.empty());
+
+    auto requestFrame = std::move(initiator->outbox.front());
+    initiator->outbox.pop();
+
+    EXPECT_EQ(requestFrame.GetMailboxID(), responderContact->rxMailboxId);
+
+    responder->OnFrameReceived(std::move(requestFrame));
+
+    ASSERT_TRUE(responderContact->initialPfsComplete);
+    ASSERT_EQ(responder->outbox.size(), 1);
+
+    auto ackFrame = std::move(responder->outbox.front());
+    responder->outbox.pop();
+
+    initiator->OnFrameReceived(std::move(ackFrame));
+
+    ASSERT_TRUE(initiatorContact->initialPfsComplete);
+
+    EXPECT_EQ(localContact->txMailboxId, peerContact->rxMailboxId);
+    EXPECT_EQ(localContact->rxMailboxId, peerContact->txMailboxId);
+
+    EXPECT_TRUE(std::ranges::equal(localContact->txKey.AsSpan(), peerContact->rxKey.AsSpan()));
+    EXPECT_TRUE(std::ranges::equal(localContact->rxKey.AsSpan(), peerContact->txKey.AsSpan()));
+
+    EXPECT_NE(localContact->txMailboxId, localBootstrapTx);
+    EXPECT_NE(localContact->rxMailboxId, localBootstrapRx);
+
+    EXPECT_FALSE(localContact->oldRxMailboxId.has_value());
+    EXPECT_FALSE(peerContact->oldRxMailboxId.has_value());
+
+    EXPECT_FALSE(initiatorContact->pendingEphemeralKey.has_value());
+
+    auto staticBootstrap =
+        bc::crypto::DerivePairwiseMailboxes(*testIdentity, peerIdentity.GetPublicKey());
+
+    ASSERT_TRUE(staticBootstrap.has_value());
+
+    EXPECT_NE(localContact->txMailboxId, bc::protocol::MailboxID(staticBootstrap->txId));
+
+    EXPECT_FALSE(std::ranges::equal(localContact->txKey.AsSpan(), staticBootstrap->txKey.AsSpan()));
+}
+
+TEST_F(ReplTest, InitialPfsWaitsUntilConnected)
+{
+    auto peer = bc::crypto::IdentityKey::Generate();
+    ASSERT_TRUE(testAddressBook.AddContact("alice", peer.GetPublicKey(), std::nullopt));
+
+    auto* contact = testAddressBook.GetMutableContact("alice");
+    ASSERT_NE(contact, nullptr);
+
+    Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
+
+    ASSERT_FALSE(repl.connected);
+
+    repl.MaybeStartInitialPfs("alice", contact);
+
+    EXPECT_TRUE(repl.outbox.empty());
+    EXPECT_EQ(contact->pfsState, bc::domain::client::PfsState::IDLE);
+
+    repl.connected = true;
+
+    if (repl.IsInitialPfsInitiator(*contact)) {
+        repl.MaybeStartInitialPfs("alice", contact);
+
+        EXPECT_EQ(repl.outbox.size(), 1);
+        EXPECT_EQ(contact->pfsState, bc::domain::client::PfsState::ROTATION_REQUESTED);
+        EXPECT_TRUE(contact->pendingEphemeralKey.has_value());
+    } else {
+        repl.MaybeStartInitialPfs("alice", contact);
+
+        EXPECT_TRUE(repl.outbox.empty());
+        EXPECT_EQ(contact->pfsState, bc::domain::client::PfsState::IDLE);
+    }
+}
+
+TEST_F(ReplTest, InitialPfsCanStartImmediatelyForContactAddedWhileConnected)
+{
+    auto peer = bc::crypto::IdentityKey::Generate();
+
+    Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
+    repl.connected = true;
+
+    ASSERT_TRUE(testAddressBook.AddContact("alice", peer.GetPublicKey(), std::nullopt));
+
+    auto* contact = testAddressBook.GetMutableContact("alice");
+    ASSERT_NE(contact, nullptr);
+
+    repl.MaybeStartInitialPfs("alice", contact);
+
+    if (repl.IsInitialPfsInitiator(*contact)) {
+        EXPECT_EQ(repl.outbox.size(), 1);
+        EXPECT_EQ(contact->pfsState, bc::domain::client::PfsState::ROTATION_REQUESTED);
+        EXPECT_TRUE(contact->pendingEphemeralKey.has_value());
+    } else {
+        EXPECT_TRUE(repl.outbox.empty());
+        EXPECT_EQ(contact->pfsState, bc::domain::client::PfsState::IDLE);
+    }
+}
+
+TEST_F(ReplTest, PeriodicPfsRotationPreservesOldReceiverMailbox)
+{
+    auto peerIdentity = bc::crypto::IdentityKey::Generate();
+
+    bc::domain::client::AddressBook peerAddressBook;
+    peerAddressBook.Initialize("test_contacts_peer.json", peerIdentity);
+
+    bc::domain::client::ConversationCache peerCache;
+    peerCache.Initialize("test_cache_peer");
+
+    ASSERT_TRUE(testAddressBook.AddContact("bob", peerIdentity.GetPublicKey(), std::nullopt));
+    ASSERT_TRUE(peerAddressBook.AddContact("alice", testIdentity->GetPublicKey(), std::nullopt));
+
+    auto* localContact = testAddressBook.GetMutableContact("bob");
+    auto* peerContact = peerAddressBook.GetMutableContact("alice");
+
+    ASSERT_NE(localContact, nullptr);
+    ASSERT_NE(peerContact, nullptr);
+
+    Repl localRepl(testAddressBook, testCache, *testIdentity, testConfig);
+    Repl peerRepl(peerAddressBook, peerCache, peerIdentity, testConfig);
+
+    localRepl.connected = true;
+    peerRepl.connected = true;
+
+    // First establish generation 1.
+    localRepl.MaybeStartInitialPfs("bob", localContact);
+    peerRepl.MaybeStartInitialPfs("alice", peerContact);
+
+    Repl* initialInitiator =
+        localRepl.IsInitialPfsInitiator(*localContact) ? &localRepl : &peerRepl;
+    Repl* initialResponder = initialInitiator == &localRepl ? &peerRepl : &localRepl;
+
+    auto request = std::move(initialInitiator->outbox.front());
+    initialInitiator->outbox.pop();
+    initialResponder->OnFrameReceived(std::move(request));
+
+    auto ack = std::move(initialResponder->outbox.front());
+    initialResponder->outbox.pop();
+    initialInitiator->OnFrameReceived(std::move(ack));
+
+    ASSERT_TRUE(localContact->initialPfsComplete);
+    ASSERT_TRUE(peerContact->initialPfsComplete);
+
+    // Generation 1 is now the "old" established session.
+    const auto peerGeneration1Rx = peerContact->rxMailboxId;
+
+    // Start a normal later rotation from local -> peer.
+    ASSERT_TRUE(localRepl.InitiatePfsRotation("bob", localContact));
+
+    auto periodicRequest = std::move(localRepl.outbox.front());
+    localRepl.outbox.pop();
+
+    peerRepl.OnFrameReceived(std::move(periodicRequest));
+
+    ASSERT_TRUE(peerContact->oldRxMailboxId.has_value());
+    EXPECT_EQ(*peerContact->oldRxMailboxId, peerGeneration1Rx);
+
+    ASSERT_TRUE(peerContact->oldRxKey.has_value());
+
+    // Complete the periodic rotation.
+    ASSERT_EQ(peerRepl.outbox.size(), 1);
+
+    auto periodicAck = std::move(peerRepl.outbox.front());
+    peerRepl.outbox.pop();
+
+    localRepl.OnFrameReceived(std::move(periodicAck));
+
+    EXPECT_TRUE(localContact->initialPfsComplete);
+    EXPECT_TRUE(peerContact->initialPfsComplete);
+
+    EXPECT_EQ(localContact->txMailboxId, peerContact->rxMailboxId);
+    EXPECT_EQ(localContact->rxMailboxId, peerContact->txMailboxId);
+    ASSERT_TRUE(peerContact->oldRxMailboxId.has_value());
+    ASSERT_TRUE(peerContact->oldRxKey.has_value());
+
+    bc::protocol::Payload rawText = {'N', 'E', 'W'};
+
+    auto textPayload = bc::domain::client::PayloadFormatter::BuildTextMessage(rawText);
+
+    auto ciphertextOpt =
+        bc::crypto::SymmetricCipher::EncryptWithPadding(localContact->txKey.AsSpan(), textPayload);
+
+    ASSERT_TRUE(ciphertextOpt.has_value());
+
+    auto newGenerationFrame =
+        bc::protocol::Frame::CreatePush(localContact->txMailboxId, std::move(*ciphertextOpt));
+
+    peerRepl.OnFrameReceived(std::move(newGenerationFrame));
+
+    EXPECT_FALSE(peerContact->oldRxMailboxId.has_value());
+    EXPECT_FALSE(peerContact->oldRxKey.has_value());
+}
+
+TEST_F(ReplTest, HandleSendStillTriggersPeriodicPfsAfterInitialSession)
+{
+    auto peer = bc::crypto::IdentityKey::Generate();
+
+    ASSERT_TRUE(testAddressBook.AddContact("alice", peer.GetPublicKey(), std::nullopt));
+
+    auto* contact = testAddressBook.GetMutableContact("alice");
+    ASSERT_NE(contact, nullptr);
+
+    contact->initialPfsComplete = true;
+
+    testConfig.securityConfig.pfsMessageInterval = 1;
+    contact->messageCounter = 1;
+
+    Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
+
+    test_in << "alice trigger periodic rotation\n";
+    repl.HandleSend();
+
+    EXPECT_EQ(contact->pfsState, bc::domain::client::PfsState::ROTATION_REQUESTED);
+
+    EXPECT_TRUE(contact->pendingEphemeralKey.has_value());
+
+    // One PFS_ROTATE_REQUEST + one normal TEXT_MESSAGE.
+    EXPECT_EQ(repl.outbox.size(), 2);
+
+    // InitiatePfsRotation resets to 0 and the sent TEXT increments it to 1.
+    EXPECT_EQ(contact->messageCounter, 1U);
+
+    EXPECT_TRUE(contact->initialPfsComplete);
+}
+
+TEST_F(ReplTest, PfsAckIsBoundToCurrentInitiatorEphemeralKey)
+{
+    auto peerIdentity = bc::crypto::IdentityKey::Generate();
+
+    ASSERT_TRUE(testAddressBook.AddContact("bob", peerIdentity.GetPublicKey(), std::nullopt));
+
+    auto* contact = testAddressBook.GetMutableContact("bob");
+    ASSERT_NE(contact, nullptr);
+
+    Repl repl(testAddressBook, testCache, *testIdentity, testConfig);
+
+    auto oldInitiatorEphemeral = bc::crypto::EphemeralKey::Generate();
+    auto newInitiatorEphemeral = bc::crypto::EphemeralKey::Generate();
+    auto responderEphemeral = bc::crypto::EphemeralKey::Generate();
+
+    ASSERT_TRUE(oldInitiatorEphemeral.has_value());
+    ASSERT_TRUE(newInitiatorEphemeral.has_value());
+    ASSERT_TRUE(responderEphemeral.has_value());
+
+    std::array<std::uint8_t, bc::crypto::publicKeySize * 2> signedData{};
+    std::span<std::uint8_t> signedDataSpan{signedData};
+
+    std::ranges::copy(oldInitiatorEphemeral->GetPublicKey(),
+                      signedDataSpan.first(bc::crypto::publicKeySize).begin());
+
+    std::ranges::copy(responderEphemeral->GetPublicKey(),
+                      signedDataSpan.last(bc::crypto::publicKeySize).begin());
+
+    std::array<std::uint8_t, bc::domain::client::cryptoSignBytes> signature{};
+
+    crypto_sign_detached(signature.data(), nullptr, signedData.data(), signedData.size(),
+                         peerIdentity.GetSecretKeySpan().data());
+
+    auto ackPayload = bc::domain::client::PayloadFormatter::BuildPfsRotateAck(
+        responderEphemeral->GetPublicKey(), signature);
+
+    contact->pfsState = bc::domain::client::PfsState::ROTATION_REQUESTED;
+
+    contact->pendingEphemeralKey = std::move(*newInitiatorEphemeral);
+
+    const auto originalTxMailbox = contact->txMailboxId;
+    const auto originalRxMailbox = contact->rxMailboxId;
+
+    repl.HandlePfsRotateAck("bob", contact, ackPayload);
+
+    EXPECT_EQ(contact->pfsState, bc::domain::client::PfsState::ROTATION_REQUESTED);
+
+    EXPECT_TRUE(contact->pendingEphemeralKey.has_value());
+
+    EXPECT_EQ(contact->txMailboxId, originalTxMailbox);
+    EXPECT_EQ(contact->rxMailboxId, originalRxMailbox);
+
+    EXPECT_FALSE(contact->initialPfsComplete);
 }
 
 } // namespace bc::cli::test

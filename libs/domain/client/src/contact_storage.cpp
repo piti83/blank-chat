@@ -36,29 +36,34 @@ namespace {
         return std::nullopt;
     }
 
-    if (!static_cast<bool>(contactObj.find_field("note").get(tempView))) {
+    if (!static_cast<bool>(contactObj.find_field_unordered("note").get(tempView))) {
         contact.note = std::string(tempView);
     }
 
-    if (!static_cast<bool>(contactObj.find_field("rxMailboxId").get(tempView))) {
+    if (!static_cast<bool>(contactObj.find_field_unordered("rxMailboxId").get(tempView))) {
         std::vector<std::uint8_t> tmp(bc::protocol::mailboxIdSize);
         if (bc::core::DecodeHexToArray(tempView, tmp))
             contact.rxMailboxId = std::move(tmp);
     }
-    if (!static_cast<bool>(contactObj.find_field("txMailboxId").get(tempView))) {
+    if (!static_cast<bool>(contactObj.find_field_unordered("txMailboxId").get(tempView))) {
         std::vector<std::uint8_t> tmp(bc::protocol::mailboxIdSize);
         if (bc::core::DecodeHexToArray(tempView, tmp))
             contact.txMailboxId = std::move(tmp);
     }
-    if (!static_cast<bool>(contactObj.find_field("rxKey").get(tempView))) {
+    if (!static_cast<bool>(contactObj.find_field_unordered("rxKey").get(tempView))) {
         std::vector<std::uint8_t> tmp(bc::crypto::symmetricKeySize);
         if (bc::core::DecodeHexToArray(tempView, tmp))
             contact.rxKey = std::move(tmp);
     }
-    if (!static_cast<bool>(contactObj.find_field("txKey").get(tempView))) {
+    if (!static_cast<bool>(contactObj.find_field_unordered("txKey").get(tempView))) {
         std::vector<std::uint8_t> tmp(bc::crypto::symmetricKeySize);
         if (bc::core::DecodeHexToArray(tempView, tmp))
             contact.txKey = std::move(tmp);
+    }
+    bool initialPfsComplete = false;
+    if (!static_cast<bool>(
+            contactObj.find_field_unordered("initialPfsComplete").get(initialPfsComplete))) {
+        contact.initialPfsComplete = initialPfsComplete;
     }
 
     return contact;
@@ -137,7 +142,9 @@ auto SyncContactsToDisk(const std::filesystem::path& contactsPath,
         outFile << "      \"txMailboxId\": \"" << bc::core::EncodeHex(c->txMailboxId.AsSpan())
                 << "\",\n";
         outFile << "      \"rxKey\": \"" << bc::core::EncodeHex(c->rxKey.AsSpan()) << "\",\n";
-        outFile << "      \"txKey\": \"" << bc::core::EncodeHex(c->txKey.AsSpan()) << "\"\n";
+        outFile << "      \"txKey\": \"" << bc::core::EncodeHex(c->txKey.AsSpan()) << "\",\n";
+        outFile << "      \"initialPfsComplete\": " << (c->initialPfsComplete ? "true" : "false")
+                << "\n";
 
         outFile << "    }";
         // NOLINTEND(modernize-raw-string-literal)

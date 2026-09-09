@@ -5,7 +5,9 @@
 #include <gtest/gtest.h>
 
 #include <client/address_book.h>
+#include <core/string_utils.h>
 #include <crypto/identity_key.h>
+#include <crypto/mailbox_derivation.h>
 
 namespace bc::domain::client::test {
 
@@ -163,6 +165,181 @@ TEST_F(AddressBookTest, SaveToDiskSucceeds)
 
     EXPECT_TRUE(book.SaveToDisk());
     EXPECT_TRUE(std::filesystem::exists(testDbPath));
+}
+
+TEST_F(AddressBookTest, InitialPfsCompleteSurvivesRestart)
+{
+    auto myIdentity = bc::crypto::IdentityKey::Generate();
+    auto peer = bc::crypto::IdentityKey::Generate();
+
+    {
+        AddressBook book;
+        book.Initialize(testDbPath, myIdentity);
+
+        ASSERT_TRUE(book.AddContact("alice", peer.GetPublicKey(), std::nullopt));
+
+        auto* contact = book.GetMutableContact("alice");
+        ASSERT_NE(contact, nullptr);
+
+        EXPECT_FALSE(contact->initialPfsComplete);
+
+        contact->initialPfsComplete = true;
+        ASSERT_TRUE(book.SaveToDisk());
+    }
+
+    AddressBook restoredBook;
+    restoredBook.Initialize(testDbPath, myIdentity);
+
+    const auto* restoredContact = restoredBook.GetContact("alice");
+    ASSERT_NE(restoredContact, nullptr);
+
+    EXPECT_TRUE(restoredContact->initialPfsComplete);
+}
+
+TEST_F(AddressBookTest, EstablishedPfsSessionKeysSurviveRestart)
+{
+    auto myIdentity = bc::crypto::IdentityKey::Generate();
+    auto peer = bc::crypto::IdentityKey::Generate();
+
+    bc::protocol::MailboxID expectedRx;
+    bc::protocol::MailboxID expectedTx;
+    expectedRx.Fill(0xA1);
+    expectedTx.Fill(0xB2);
+
+    {
+        AddressBook book;
+        book.Initialize(testDbPath, myIdentity);
+
+        ASSERT_TRUE(book.AddContact("alice", peer.GetPublicKey(), std::nullopt));
+
+        auto* contact = book.GetMutableContact("alice");
+        ASSERT_NE(contact, nullptr);
+
+        contact->rxMailboxId = expectedRx;
+        contact->txMailboxId = expectedTx;
+
+        std::ranges::fill(contact->rxKey.AsMutableSpan(), 0xC3);
+        std::ranges::fill(contact->txKey.AsMutableSpan(), 0xD4);
+
+        contact->initialPfsComplete = true;
+
+        ASSERT_TRUE(book.SaveToDisk());
+    }
+
+    AddressBook restoredBook;
+    restoredBook.Initialize(testDbPath, myIdentity);
+
+    const auto* restored = restoredBook.GetContact("alice");
+    ASSERT_NE(restored, nullptr);
+
+    EXPECT_TRUE(restored->initialPfsComplete);
+
+    EXPECT_EQ(restored->rxMailboxId, expectedRx);
+    EXPECT_EQ(restored->txMailboxId, expectedTx);
+
+    EXPECT_TRUE(std::ranges::all_of(restored->rxKey.AsSpan(),
+                                    [](std::uint8_t value) { return value == 0xC3; }));
+
+    EXPECT_TRUE(std::ranges::all_of(restored->txKey.AsSpan(),
+                                    [](std::uint8_t value) { return value == 0xD4; }));
+}
+
+TEST_F(AddressBookTest, LegacyStaticBootstrapSessionIsMarkedIncomplete)
+{
+    auto myIdentity = bc::crypto::IdentityKey::Generate();
+    auto peer = bc::crypto::IdentityKey::Generate();
+
+    auto bootstrap = bc::crypto::DerivePairwiseMailboxes(myIdentity, peer.GetPublicKey());
+    ASSERT_TRUE(bootstrap.has_value());
+
+    {
+        std::ofstream out(testDbPath);
+
+        out << "{\n"
+               "  \"contacts\": [\n"
+               "    {\n"
+               "      \"alias\": \"alice\",\n"
+               "      \"publicKey\": \""
+            << bc::core::EncodeHex(peer.GetPublicKey())
+            << "\",\n"
+               "      \"rxMailboxId\": \""
+            << bc::core::EncodeHex(bootstrap->rxId)
+            << "\",\n"
+               "      \"txMailboxId\": \""
+            << bc::core::EncodeHex(bootstrap->txId)
+            << "\",\n"
+               "      \"rxKey\": \""
+            << bc::core::EncodeHex(bootstrap->rxKey.AsSpan())
+            << "\",\n"
+               "      \"txKey\": \""
+            << bc::core::EncodeHex(bootstrap->txKey.AsSpan())
+            << "\"\n"
+               "    }\n"
+               "  ]\n"
+               "}\n";
+    }
+
+    AddressBook book;
+    book.Initialize(testDbPath, myIdentity);
+
+    const auto* contact = book.GetContact("alice");
+    ASSERT_NE(contact, nullptr);
+
+    EXPECT_FALSE(contact->initialPfsComplete);
+}
+
+TEST_F(AddressBookTest, LegacyNonBootstrapSessionIsMarkedComplete)
+{
+    auto myIdentity = bc::crypto::IdentityKey::Generate();
+    auto peer = bc::crypto::IdentityKey::Generate();
+
+    bc::protocol::MailboxID rx;
+    bc::protocol::MailboxID tx;
+    rx.Fill(0x11);
+    tx.Fill(0x22);
+
+    bc::core::SecureBuffer rxKey(bc::crypto::symmetricKeySize);
+    bc::core::SecureBuffer txKey(bc::crypto::symmetricKeySize);
+
+    std::ranges::fill(rxKey.AsMutableSpan(), 0x33);
+    std::ranges::fill(txKey.AsMutableSpan(), 0x44);
+
+    {
+        std::ofstream out(testDbPath);
+
+        out << "{\n"
+               "  \"contacts\": [\n"
+               "    {\n"
+               "      \"alias\": \"alice\",\n"
+               "      \"publicKey\": \""
+            << bc::core::EncodeHex(peer.GetPublicKey())
+            << "\",\n"
+               "      \"rxMailboxId\": \""
+            << bc::core::EncodeHex(rx.AsSpan())
+            << "\",\n"
+               "      \"txMailboxId\": \""
+            << bc::core::EncodeHex(tx.AsSpan())
+            << "\",\n"
+               "      \"rxKey\": \""
+            << bc::core::EncodeHex(rxKey.AsSpan())
+            << "\",\n"
+               "      \"txKey\": \""
+            << bc::core::EncodeHex(txKey.AsSpan())
+            << "\"\n"
+               "    }\n"
+               "  ]\n"
+               "}\n";
+    }
+
+    AddressBook book;
+    book.Initialize(testDbPath, myIdentity);
+
+    const auto* contact = book.GetContact("alice");
+    ASSERT_NE(contact, nullptr);
+
+    EXPECT_TRUE(contact->initialPfsComplete);
+    EXPECT_EQ(contact->rxMailboxId, rx);
+    EXPECT_EQ(contact->txMailboxId, tx);
 }
 
 } // namespace bc::domain::client::test

@@ -29,6 +29,8 @@ struct Contact
     bc::core::SecureBuffer rxKey;
     bc::core::SecureBuffer txKey;
 
+    bool initialPfsComplete{false};
+
     std::uint32_t messageCounter{0};
     PfsState pfsState{PfsState::IDLE};
 

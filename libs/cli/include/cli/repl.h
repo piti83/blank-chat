@@ -60,6 +60,12 @@ private:
     auto ProcessAckFrame(std::string_view alias, domain::client::Contact* contact, bool usedOldKey,
                          const std::vector<std::uint8_t>& payload) -> void;
 
+    auto InitiatePfsRotation(std::string_view alias, domain::client::Contact* contact) -> bool;
+    auto MaybeStartInitialPfs(std::string_view alias, domain::client::Contact* contact) -> void;
+    auto StartPendingInitialPfs() -> void;
+    [[nodiscard]] auto IsInitialPfsInitiator(const domain::client::Contact& contact) const noexcept
+        -> bool;
+
     std::thread asioThread;
 
     std::mutex outboxMutex;
@@ -69,6 +75,7 @@ private:
 
     std::vector<std::string> contactAliases;
     std::size_t currentPollIndex{0};
+    bool connected{false};
 
     boost::asio::io_context ioContext;
     bc::network::TcpClient client;

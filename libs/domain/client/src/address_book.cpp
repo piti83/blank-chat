@@ -1,5 +1,7 @@
 #include "client/address_book.h"
 
+#include <algorithm>
+
 #include <client/contact.h>
 #include <client/contact_storage.h>
 #include <core/logger.h>
@@ -38,6 +40,28 @@ auto AddressBook::Initialize(const std::filesystem::path& pathToContactsFile,
             std::ranges::copy(*c.rxKey, newContact.rxKey.AsMutableSpan().begin());
             std::ranges::copy(*c.txKey, newContact.txKey.AsMutableSpan().begin());
 
+            if (c.initialPfsComplete.has_value()) {
+                newContact.initialPfsComplete = *c.initialPfsComplete;
+            } else {
+                auto bootstrapOpt = bc::crypto::DerivePairwiseMailboxes(*identity, c.publicKey);
+
+                if (bootstrapOpt) {
+                    const auto bootstrapRxMailbox = bc::protocol::MailboxID(bootstrapOpt->rxId);
+                    const auto bootstrapTxMailbox = bc::protocol::MailboxID(bootstrapOpt->txId);
+
+                    const bool isStaticBootstrap =
+                        newContact.rxMailboxId == bootstrapRxMailbox &&
+                        newContact.txMailboxId == bootstrapTxMailbox &&
+                        std::ranges::equal(newContact.rxKey.AsSpan(),
+                                           bootstrapOpt->rxKey.AsSpan()) &&
+                        std::ranges::equal(newContact.txKey.AsSpan(), bootstrapOpt->txKey.AsSpan());
+
+                    newContact.initialPfsComplete = !isStaticBootstrap;
+                } else {
+                    newContact.initialPfsComplete = false;
+                }
+            }
+
             BC_INFO("Restored existing keys and mailboxes for contact '{}'.", c.alias);
         } else {
             auto derivedOpt = bc::crypto::DerivePairwiseMailboxes(*identity, c.publicKey);
@@ -49,6 +73,7 @@ auto AddressBook::Initialize(const std::filesystem::path& pathToContactsFile,
             newContact.txMailboxId = bc::protocol::MailboxID(derivedOpt->txId);
             newContact.rxKey = std::move(derivedOpt->rxKey);
             newContact.txKey = std::move(derivedOpt->txKey);
+            newContact.initialPfsComplete = false;
             BC_INFO("Derived initial keys for contact '{}'.", c.alias);
         }
 
@@ -78,7 +103,8 @@ auto AddressBook::AddContact(const std::string& alias, const PublicKeyType& publ
                        .rxMailboxId = bc::protocol::MailboxID(derivedOpt->rxId),
                        .txMailboxId = bc::protocol::MailboxID(derivedOpt->txId),
                        .rxKey = std::move(derivedOpt->rxKey),
-                       .txKey = std::move(derivedOpt->txKey)};
+                       .txKey = std::move(derivedOpt->txKey),
+                       .initialPfsComplete = false};
 
     contacts.insert_or_assign(alias, std::move(newContact));
     SaveToDisk();

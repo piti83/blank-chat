@@ -15,6 +15,8 @@ struct RawContact
     PublicKeyType publicKey{};
     std::optional<std::string> note = std::nullopt;
 
+    std::optional<bool> initialPfsComplete = std::nullopt;
+
     std::optional<std::vector<std::uint8_t>> rxMailboxId = std::nullopt;
     std::optional<std::vector<std::uint8_t>> txMailboxId = std::nullopt;
     std::optional<std::vector<std::uint8_t>> rxKey = std::nullopt;
