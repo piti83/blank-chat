@@ -644,7 +644,7 @@ auto Repl::ProcessAckFrame(std::string_view alias, bc::domain::client::Contact* 
     sodium_memzero(plaintextOpt->data(), plaintextOpt->size());
 }
 
-auto Repl::InitiatePfsRotation(std::string_view alias, bc::domain::client::Contact* contact) -> bool
+auto Repl::InitiatePfsRotation([[maybe_unused]]std::string_view alias, bc::domain::client::Contact* contact) -> bool
 {
     if (contact == nullptr || contact->pfsState != bc::domain::client::PfsState::IDLE) {
         return false;
