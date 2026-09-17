@@ -18,6 +18,7 @@ IMAGE_INSTALL += " \
     iproute2 \
     linux-firmware \
     tor \
+    tcpdump \
     blankchat-tor-config-server \
 "
 

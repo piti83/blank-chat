@@ -43,7 +43,8 @@ def destroy_vms():
 def create_and_start_vm(vm_name: str, disk_path: Path):
     print_info(f"Registering and starting VM {vm_name}...")
     run_command([
-        "virt-install",
+        "/usr/bin/python3",
+        "/usr/bin/virt-install",
         "--connect", "qemu:///system",
         "--name", vm_name,
         "--memory", "2048",

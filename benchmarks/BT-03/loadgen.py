@@ -12,6 +12,8 @@ ACTION_AUTH_CHALLENGE=0x04
 ACTION_AUTH_RESPONSE=0x05
 MAILBOX_SIZE=16
 FRAME_HEADER_SIZE=21
+TOR_CELL_PAYLOAD_SIZE=498
+CONTROL_PAYLOAD_SIZE=TOR_CELL_PAYLOAD_SIZE-FRAME_HEADER_SIZE
 CHALLENGE_SIZE=32
 MAX_PAYLOAD_SIZE=1024*1024
 ZERO_MAILBOX=b"\x00"*MAILBOX_SIZE
@@ -56,6 +58,11 @@ def build_frame(action,mailbox_id,payload=b""):
     if len(mailbox_id)!=MAILBOX_SIZE: raise ValueError("bad mailbox size")
     if len(payload)>MAX_PAYLOAD_SIZE: raise ValueError("payload too large")
     return bytes([action])+mailbox_id+struct.pack("<I",len(payload))+payload
+
+def pad_control_payload(payload=b""):
+    if len(payload)>CONTROL_PAYLOAD_SIZE:
+        raise ValueError("control payload too large")
+    return payload+b"\x00"*(CONTROL_PAYLOAD_SIZE-len(payload))
 
 def send_frame(sock,action,mailbox_id,payload=b""):
     sock.sendall(build_frame(action,mailbox_id,payload))
@@ -103,14 +110,42 @@ def solve_pow(challenge):
     raise LoadGenError("no nonce found")
 
 def authenticate(sock):
-    action,_,challenge=recv_frame(sock)
-    if action!=ACTION_AUTH_CHALLENGE: raise ProtocolError("expected challenge")
+    action,_,challenge_payload=recv_frame(sock)
+
+    if action!=ACTION_AUTH_CHALLENGE:
+        raise ProtocolError("expected challenge")
+
+    if len(challenge_payload)!=CONTROL_PAYLOAD_SIZE:
+        raise ProtocolError(
+            f"bad AUTH_CHALLENGE payload size: {len(challenge_payload)}"
+        )
+
+    challenge=challenge_payload[:CHALLENGE_SIZE]
     nonce=solve_pow(challenge)
-    send_frame(sock,ACTION_AUTH_RESPONSE,ZERO_MAILBOX,nonce)
+
+    send_frame(
+        sock,
+        ACTION_AUTH_RESPONSE,
+        ZERO_MAILBOX,
+        pad_control_payload(nonce),
+    )
+
     mailbox=os.urandom(MAILBOX_SIZE)
-    send_frame(sock,ACTION_POLL,mailbox)
+
+    send_frame(
+        sock,
+        ACTION_POLL,
+        mailbox,
+        pad_control_payload(),
+    )
+
     a,m,p=recv_frame(sock)
-    if a!=ACTION_POLL or m!=mailbox or p:
+
+    if (
+        a!=ACTION_POLL
+        or m!=mailbox
+        or p!=pad_control_payload()
+    ):
         raise ProtocolError("auth validation failed")
 
 def create_authenticated_client(args):
@@ -138,7 +173,7 @@ def probe_connection(args):
         return "indeterminate",f"SOCKS/Tor error: {exc}"
     try:
         action,_,payload=recv_frame(sock)
-        if action==ACTION_AUTH_CHALLENGE and len(payload)==CHALLENGE_SIZE:
+        if action==ACTION_AUTH_CHALLENGE and len(payload)==CONTROL_PAYLOAD_SIZE:
             return "accepted","AUTH_CHALLENGE received"
         return "indeterminate",f"unexpected first frame action=0x{action:02x}"
     except (ConnectionResetError,BrokenPipeError,ConnectionError) as exc:
@@ -161,10 +196,20 @@ def verify_existing_session(sock, timeout):
     try:
         sock.settimeout(timeout)
 
-        send_frame(sock,ACTION_POLL,mailbox)
+        send_frame(
+            sock,
+            ACTION_POLL,
+            mailbox,
+            pad_control_payload(),
+        )
+
         a,m,p=recv_frame(sock)
 
-        return a==ACTION_POLL and m==mailbox and p==b""
+        return (
+            a==ACTION_POLL
+            and m==mailbox
+            and p==pad_control_payload()
+        )
 
     except (OSError,ConnectionError,ProtocolError):
         return False

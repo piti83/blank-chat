@@ -19,12 +19,12 @@ import pexpect
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 BENCHMARKS_DIR = PROJECT_ROOT / "benchmarks"
-STRESS_DIR = BENCHMARKS_DIR / "stress"
+TEST_DIR = BENCHMARKS_DIR / "BT-03"
 
 VM_MANAGER = BENCHMARKS_DIR / "vm_manager.py"
 CHUTNEY_MANAGER = BENCHMARKS_DIR / "chutney_manager.sh"
-LOADGEN = STRESS_DIR / "loadgen.py"
-MONITOR_SCRIPT = STRESS_DIR / "monitor.sh"
+LOADGEN = TEST_DIR / "loadgen.py"
+MONITOR_SCRIPT = TEST_DIR / "monitor.sh"
 
 SERVER_VM = "bc-server"
 CLIENT_VMS = ("bc-client-1", "bc-client-2")
@@ -782,7 +782,7 @@ def main() -> int:
     args = parse_args()
 
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    result_dir = BENCHMARKS_DIR / "results" / "stress" / stamp
+    result_dir = BENCHMARKS_DIR / "results" / "BT-03" / stamp
     result_dir.mkdir(parents=True, exist_ok=True)
 
     metadata = RunMetadata(
