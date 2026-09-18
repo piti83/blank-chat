@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import re
 import shlex
@@ -35,6 +36,7 @@ TOR_CONTROL_PORT = 8006
 TOR_SOCKS_HOST = "127.0.0.1"
 TOR_SOCKS_PORT = 9050
 SERVER_PORT = 8080
+MEMORY_QUOTA_PERCENT = 80.0
 
 REMOTE_SERVER_CONFIG = "/etc/blank-chat/server_config.toml"
 REMOTE_SERVER_LOG = "/tmp/stress_server.log"
@@ -54,6 +56,8 @@ class StressError(RuntimeError):
 @dataclass
 class RunMetadata:
     started_at: str
+    commit: str = ""
+    dirty_worktree: bool = False
     server_vm: str = SERVER_VM
     server_ip: str = ""
     onion: str = ""
@@ -61,6 +65,10 @@ class RunMetadata:
     payload_size: int = 1024 * 1024
     max_sent_mib: int = 1800
     setup_only: bool = False
+    memory_quota_percent: float = MEMORY_QUOTA_PERCENT
+    min_rss_percent: float | None = None
+    max_rss_percent: float | None = None
+    quota_crossed: bool = False
     loadgen_exit_code: int | None = None
     result: str = "incomplete"
 
@@ -480,14 +488,14 @@ def upload_text(child: pexpect.spawn, remote_path: str, text: str) -> None:
 
 def configure_server(child: pexpect.spawn) -> None:
     info("Writing stress-test server configuration...")
-    config = """[network]
+    config = f"""[network]
 listen_host = "0.0.0.0"
 listen_port = 8080
 tor_control_host = "192.168.122.1"
 tor_control_port = 8006
 
 [security]
-memory_quota_percent = 80
+memory_quota_percent = {int(MEMORY_QUOTA_PERCENT)}
 max_messages_per_mailbox = 5000000
 """
     console_cmd(child, "mkdir -p /etc/blank-chat")
@@ -697,6 +705,65 @@ def save_vm_artifacts(child: pexpect.spawn, result_dir: Path) -> None:
     )
     ok(f"Artifacts saved to {result_dir}")
 
+def validate_memory_metrics(
+    result_dir: Path,
+    quota_percent: float,
+) -> tuple[float, float]:
+    metrics_path = result_dir / "metrics.csv"
+
+    if not metrics_path.exists():
+        raise StressError(f"Missing metrics file: {metrics_path}")
+
+    rss_values: list[float] = []
+
+    with metrics_path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+
+        if reader.fieldnames is None or "RSS_percent" not in reader.fieldnames:
+            raise StressError("metrics.csv does not contain RSS_percent column")
+
+        for row in reader:
+            raw_value = row.get("RSS_percent")
+            if not raw_value:
+                continue
+
+            try:
+                rss_values.append(float(raw_value))
+            except ValueError:
+                continue
+
+    if not rss_values:
+        raise StressError("metrics.csv contains no valid RSS_percent samples")
+
+    min_rss = min(rss_values)
+    max_rss = max(rss_values)
+
+    info(
+        f"Memory samples: min RSS={min_rss:.4f}%, "
+        f"max RSS={max_rss:.4f}%, quota={quota_percent:.2f}%"
+    )
+
+    if min_rss >= quota_percent:
+        raise StressError(
+            f"No pre-quota memory sample observed: "
+            f"minimum RSS was {min_rss:.4f}%"
+        )
+
+    if max_rss < quota_percent:
+        raise StressError(
+            f"Memory quota was not crossed: "
+            f"maximum RSS was {max_rss:.4f}%, "
+            f"required >= {quota_percent:.2f}%"
+        )
+
+    ok(
+        f"Memory quota crossed: "
+        f"{min_rss:.4f}% -> {max_rss:.4f}% "
+        f"(threshold {quota_percent:.2f}%)"
+    )
+
+    return min_rss, max_rss
+
 
 def stop_server(child: pexpect.spawn) -> None:
     console_cmd(
@@ -785,12 +852,40 @@ def main() -> int:
     result_dir = BENCHMARKS_DIR / "results" / "BT-03" / stamp
     result_dir.mkdir(parents=True, exist_ok=True)
 
+    commit = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=PROJECT_ROOT,
+        text=True,
+        capture_output=True,
+        check=True,
+    ).stdout.strip()
+
+    git_status = subprocess.run(
+        ["git", "status", "--short"],
+        cwd=PROJECT_ROOT,
+        text=True,
+        capture_output=True,
+        check=True,
+    ).stdout
+
     metadata = RunMetadata(
         started_at=datetime.now().astimezone().isoformat(),
+        commit=commit,
+        dirty_worktree=bool(git_status.strip()),
         clients=args.clients,
         payload_size=args.payload_size,
         max_sent_mib=args.max_sent_mib,
         setup_only=args.setup_only,
+    )
+
+    (result_dir / "commit.txt").write_text(
+        commit + "\n",
+        encoding="utf-8",
+    )
+
+    (result_dir / "git_status.txt").write_text(
+            git_status,
+            encoding="utf-8",
     )
 
     console: pexpect.spawn | None = None
@@ -849,10 +944,31 @@ def main() -> int:
 
         save_vm_artifacts(console, result_dir)
 
+        if not args.setup_only:
+            min_rss, max_rss = validate_memory_metrics(
+                result_dir,
+                MEMORY_QUOTA_PERCENT,
+            )
+        
+            metadata.min_rss_percent = min_rss
+            metadata.max_rss_percent = max_rss
+            metadata.quota_crossed = True
+
         if loadgen_rc == 0:
             metadata.result = "passed"
             exit_code = 0
-            ok("Stress test completed successfully")
+
+            if args.setup_only:
+                ok("BT-03 setup-only check completed successfully")
+            else:
+                ok("Baseline new connection was accepted before memory pressure")
+                ok(
+                    f"Memory quota threshold crossed: "
+                    f"max RSS={metadata.max_rss_percent:.4f}%"
+                )
+                ok("New connections were rejected after memory quota was exceeded")
+                ok("Existing authenticated session remained responsive")
+                ok("BT-03 completed successfully")
         else:
             metadata.result = "failed"
             exit_code = loadgen_rc
