@@ -6,6 +6,8 @@ cd "$PROJECT_ROOT"
 
 BT04_REPETITIONS=1
 SKIP_INITIAL_BUILD=0
+SUDO_KEEPALIVE_PID=""
+MAIN_PID="$$"
 
 usage() {
     cat <<'EOF'
@@ -93,9 +95,43 @@ restore_benchmark_sources() {
         libs/network/src/tcp_client.cpp
 }
 
+start_sudo_keepalive() {
+    log
+    log "[i] Acquiring sudo credentials once for the unattended benchmark suite..."
+    sudo -v
+
+    if ! sudo -n true >/dev/null 2>&1; then
+        echo "[!] sudo credentials could not be reused non-interactively after sudo -v." >&2
+        echo "[!] Check sudoers timestamp policy before running the unattended suite." >&2
+        exit 1
+    fi
+
+    (
+        while true; do
+            sleep 60
+            if ! sudo -n -v >/dev/null 2>&1; then
+                echo "[!] sudo keepalive failed; aborting the suite instead of waiting for a password prompt." >&2
+                kill -TERM "$MAIN_PID" 2>/dev/null || true
+                exit 1
+            fi
+        done
+    ) &
+    SUDO_KEEPALIVE_PID=$!
+    log "[+] sudo timestamp keepalive active (PID $SUDO_KEEPALIVE_PID)."
+}
+
+stop_sudo_keepalive() {
+    if [[ -n "${SUDO_KEEPALIVE_PID:-}" ]] && kill -0 "$SUDO_KEEPALIVE_PID" 2>/dev/null; then
+        kill "$SUDO_KEEPALIVE_PID" 2>/dev/null || true
+        wait "$SUDO_KEEPALIVE_PID" 2>/dev/null || true
+    fi
+    SUDO_KEEPALIVE_PID=""
+}
+
 cleanup() {
     local rc=$?
     set +e
+    stop_sudo_keepalive
     restore_benchmark_sources >/dev/null 2>&1
     {
         echo
@@ -164,6 +200,8 @@ prepare_client_diagnostics() {
 log "[i] Blank Chat final benchmark suite"
 log "[i] Commit: $COMMIT"
 log "[i] Suite artifacts: $SUITE_DIR"
+
+start_sudo_keepalive
 
 restore_benchmark_sources
 
