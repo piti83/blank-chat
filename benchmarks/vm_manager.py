@@ -29,9 +29,29 @@ def get_yocto_deploy_dir(project_root: Path) -> Path:
     return deploy_dir
 
 
+def make_qemu_backing_path_accessible(project_root: Path, vms_dir: Path, base_dir: Path) -> None:
+    """
+    QEMU runs under the system libvirt account, not as the invoking user.
+    The backing-file path therefore needs execute permission on directories.
+    """
+    runtime_dir = project_root / ".chutney"
+
+    for directory in (runtime_dir, vms_dir, base_dir):
+        directory.mkdir(parents=True, exist_ok=True)
+        directory.chmod(0o755)
+
+
 def stage_base_image(source: Path, destination: Path) -> Path:
-    """Create a private benchmark copy/reflink of a Yocto WIC image."""
+    """
+    Create a benchmark-private copy/reflink of a Yocto WIC image.
+
+    The deploy image is never exposed directly to libvirt/QEMU. The staged
+    image is read-only from QEMU's point of view and may safely be used as a
+    QCOW2 backing file.
+    """
     destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.parent.chmod(0o755)
+
     temporary = destination.with_name(destination.name + ".tmp")
 
     temporary.unlink(missing_ok=True)
@@ -51,6 +71,11 @@ def stage_base_image(source: Path, destination: Path) -> Path:
     )
 
     temporary.replace(destination)
+
+    # The system libvirt QEMU process must be able to read the backing image.
+    # The staged base contains a fresh benchmark image, not runtime secrets.
+    destination.chmod(0o644)
+
     return destination.resolve()
 
 
@@ -155,8 +180,8 @@ def main():
 
     vms_dir = project_root / ".chutney" / "vms"
     base_dir = vms_dir / "base"
-    vms_dir.mkdir(parents=True, exist_ok=True)
-    base_dir.mkdir(parents=True, exist_ok=True)
+
+    make_qemu_backing_path_accessible(project_root, vms_dir, base_dir)
 
     server_disk = vms_dir / "server.qcow2"
     client1_disk = vms_dir / "client1.qcow2"
@@ -164,8 +189,12 @@ def main():
 
     destroy_vms()
 
-    staged_server_wic = stage_base_image(server_wic, base_dir / "server-base.wic")
-    staged_client_wic = stage_base_image(client_wic, base_dir / "client-base.wic")
+    staged_server_wic = stage_base_image(
+        server_wic, base_dir / "server-base.wic"
+    )
+    staged_client_wic = stage_base_image(
+        client_wic, base_dir / "client-base.wic"
+    )
 
     create_cow_disk(staged_server_wic, server_disk)
     create_cow_disk(staged_client_wic, client1_disk)
