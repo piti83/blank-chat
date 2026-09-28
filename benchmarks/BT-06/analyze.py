@@ -5,7 +5,6 @@ import argparse
 import csv
 import json
 import math
-import shutil
 import statistics
 import sys
 from dataclasses import dataclass
@@ -14,10 +13,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-BENCHMARKS_DIR = PROJECT_ROOT / "benchmarks"
-DEFAULT_RESULTS_DIR = BENCHMARKS_DIR / "results" / "BT-06"
 MODES = ("cbr", "poisson")
 
 
@@ -40,12 +36,19 @@ class CorrectedTime:
     uncertainty_ns: float
 
 
+def read_json(path: Path) -> dict:
+    if not path.exists():
+        raise Bt06Error(f"Missing required file: {path}")
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise Bt06Error(f"Invalid JSON in {path}: {exc}") from exc
+
+
 def percentile(values: list[float], q: float) -> float:
-    if not values:
-        raise Bt06Error("Cannot calculate percentile of an empty sample")
-    if not 0.0 <= q <= 1.0:
-        raise Bt06Error("Percentile q must be in [0, 1]")
     ordered = sorted(values)
+    if not ordered:
+        raise Bt06Error("Cannot calculate percentile of empty sample")
     if len(ordered) == 1:
         return ordered[0]
     pos = (len(ordered) - 1) * q
@@ -55,15 +58,6 @@ def percentile(values: list[float], q: float) -> float:
         return ordered[lo]
     frac = pos - lo
     return ordered[lo] * (1.0 - frac) + ordered[hi] * frac
-
-
-def read_json(path: Path) -> dict:
-    if not path.exists():
-        raise Bt06Error(f"Missing required file: {path}")
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        raise Bt06Error(f"Invalid JSON in {path}: {exc}") from exc
 
 
 def anchor_from(calibration: dict, phase: str, client: str) -> Anchor:
@@ -76,74 +70,89 @@ def anchor_from(calibration: dict, phase: str, client: str) -> Anchor:
             rtt_ns=int(selected["rtt_ns"]),
         )
     except (KeyError, TypeError, ValueError) as exc:
-        raise Bt06Error(
-            f"clock_calibration.json is missing a valid {phase}/{client}/selected sample"
-        ) from exc
+        raise Bt06Error(f"Invalid clock calibration for {phase}/{client}") from exc
 
 
 def correct_vm_time(vm_event_ns: int, pre: Anchor, post: Anchor) -> CorrectedTime:
     if post.vm_ns <= pre.vm_ns:
-        raise Bt06Error("Post-run clock calibration is not later than pre-run calibration")
-
+        raise Bt06Error("Post calibration is not later than pre calibration")
     alpha = (vm_event_ns - pre.vm_ns) / (post.vm_ns - pre.vm_ns)
-    # Events should be inside the two calibration points. Clamp tiny boundary
-    # excursions caused by logging/order, but reject a clearly wrong dataset.
     if alpha < -0.05 or alpha > 1.05:
-        raise Bt06Error(
-            "Message timestamp lies materially outside the pre/post clock calibration window"
-        )
+        raise Bt06Error("Message timestamp lies materially outside calibration window")
     alpha = min(1.0, max(0.0, alpha))
-
-    offset = (
-        pre.offset_vm_minus_host_ns
-        + alpha * (post.offset_vm_minus_host_ns - pre.offset_vm_minus_host_ns)
+    offset = pre.offset_vm_minus_host_ns + alpha * (
+        post.offset_vm_minus_host_ns - pre.offset_vm_minus_host_ns
     )
     rtt = pre.rtt_ns + alpha * (post.rtt_ns - pre.rtt_ns)
-    host_ns = int(round(vm_event_ns - offset))
-
-    # Midpoint clock estimation has an approximate one-way timing uncertainty
-    # bounded by half the observed command round trip, assuming no stronger
-    # synchronization guarantee.
     return CorrectedTime(
-        host_ns=host_ns,
+        host_ns=int(round(vm_event_ns - offset)),
         offset_ns=offset,
         uncertainty_ns=max(0.0, rtt / 2.0),
     )
 
 
-def index_events(entries: list[dict], label: str) -> dict[str, int]:
-    indexed: dict[str, int] = {}
+def index_events(entries: list[dict], label: str) -> dict[str, dict]:
+    indexed: dict[str, dict] = {}
     for entry in entries:
         try:
             msg_id = str(entry["msg_id"]).lower()
             timestamp_ns = int(entry["timestamp_ns"])
+            sequence = int(entry["sequence"])
         except (KeyError, TypeError, ValueError) as exc:
             raise Bt06Error(f"Malformed {label} event: {entry!r}") from exc
         if msg_id in indexed:
-            raise Bt06Error(f"Duplicate {label} event for message {msg_id}")
-        indexed[msg_id] = timestamp_ns
+            raise Bt06Error(f"Duplicate {label} event for {msg_id}")
+        indexed[msg_id] = {**entry, "timestamp_ns": timestamp_ns, "sequence": sequence}
     return indexed
 
 
-def build_latency_rows(bt05_root: Path, mode: str) -> tuple[list[dict], dict]:
-    mode_dir = bt05_root / mode
+def validate_mode(mode_dir: Path) -> tuple[dict, dict, dict]:
     events = read_json(mode_dir / "message_events.json")
     calibration = read_json(mode_dir / "clock_calibration.json")
     run_meta = read_json(mode_dir / "run.json")
 
-    queued = index_events(events.get("queue", []), "QUEUE")
-    received = index_events(events.get("rx", []), "RX")
+    if events.get("series_policy") != "ack-gated" or run_meta.get("series_policy") != "ack-gated":
+        raise Bt06Error(f"{mode_dir.name}: source series is not ACK-gated")
+    if not events.get("validation", {}).get("verified_no_overlap", False):
+        raise Bt06Error(f"{mode_dir.name}: no-overlap validation is missing or false")
 
     expected = int(run_meta.get("messages_requested", 0))
     if expected <= 0:
-        raise Bt06Error(f"Invalid messages_requested in {mode_dir / 'run.json'}")
-    if len(queued) != expected or len(received) != expected:
+        raise Bt06Error(f"{mode_dir.name}: invalid messages_requested")
+
+    queue = index_events(events.get("queue", []), "QUEUE")
+    tx = index_events(events.get("tx", []), "TX")
+    rx = index_events(events.get("rx", []), "RX")
+    ack = index_events(events.get("ack", []), "ACK")
+
+    if not (len(queue) == len(tx) == len(rx) == len(ack) == expected):
         raise Bt06Error(
-            f"{mode}: expected {expected} QUEUE and RX events, got "
-            f"QUEUE={len(queued)}, RX={len(received)}"
+            f"{mode_dir.name}: expected {expected} events of each type, got "
+            f"QUEUE={len(queue)} TX={len(tx)} RX={len(rx)} ACK={len(ack)}"
         )
-    if set(queued) != set(received):
-        raise Bt06Error(f"{mode}: QUEUE and RX message-ID sets differ")
+    if not (set(queue) == set(tx) == set(rx) == set(ack)):
+        raise Bt06Error(f"{mode_dir.name}: QUEUE/TX/RX/ACK ID sets differ")
+
+    ordered = sorted(queue.values(), key=lambda item: item["sequence"])
+    if [item["sequence"] for item in ordered] != list(range(1, expected + 1)):
+        raise Bt06Error(f"{mode_dir.name}: invalid sequence numbering")
+    ack_by_id = ack
+    for i in range(expected - 1):
+        current_id = ordered[i]["msg_id"].lower()
+        next_id = ordered[i + 1]["msg_id"].lower()
+        if int(queue[next_id]["timestamp_ns"]) < int(ack_by_id[current_id]["timestamp_ns"]):
+            raise Bt06Error(f"{mode_dir.name}: ACK-gating invariant violated at sequence {i+1}")
+
+    return events, calibration, run_meta
+
+
+def build_rows(root: Path, mode: str) -> tuple[list[dict], dict]:
+    mode_dir = root / mode
+    events, calibration, run_meta = validate_mode(mode_dir)
+    queue = index_events(events["queue"], "QUEUE")
+    tx = index_events(events["tx"], "TX")
+    rx = index_events(events["rx"], "RX")
+    ack = index_events(events["ack"], "ACK")
 
     a_pre = anchor_from(calibration, "pre", "client_a")
     a_post = anchor_from(calibration, "post", "client_a")
@@ -151,50 +160,52 @@ def build_latency_rows(bt05_root: Path, mode: str) -> tuple[list[dict], dict]:
     b_post = anchor_from(calibration, "post", "client_b")
 
     rows: list[dict] = []
-    for msg_id, start_vm_ns in sorted(queued.items(), key=lambda item: item[1]):
-        end_vm_ns = received[msg_id]
-        start = correct_vm_time(start_vm_ns, a_pre, a_post)
-        end = correct_vm_time(end_vm_ns, b_pre, b_post)
-        latency_ns = end.host_ns - start.host_ns
-        if latency_ns < 0:
-            raise Bt06Error(
-                f"{mode}: negative corrected latency for {msg_id}: {latency_ns / 1e6:.3f} ms"
-            )
+    for msg_id, q_event in sorted(queue.items(), key=lambda item: item[1]["sequence"]):
+        q = correct_vm_time(int(q_event["timestamp_ns"]), a_pre, a_post)
+        t = correct_vm_time(int(tx[msg_id]["timestamp_ns"]), a_pre, a_post)
+        r = correct_vm_time(int(rx[msg_id]["timestamp_ns"]), b_pre, b_post)
+        a = correct_vm_time(int(ack[msg_id]["timestamp_ns"]), a_pre, a_post)
 
-        rows.append(
-            {
-                "message_id": msg_id,
-                "t_start_vm_ns": start_vm_ns,
-                "t_end_vm_ns": end_vm_ns,
-                "t_start_host_corrected_ns": start.host_ns,
-                "t_end_host_corrected_ns": end.host_ns,
-                "latency_ms": latency_ns / 1_000_000.0,
-                "sender_offset_ms": start.offset_ns / 1_000_000.0,
-                "receiver_offset_ms": end.offset_ns / 1_000_000.0,
-                "estimated_clock_uncertainty_ms": (
-                    start.uncertainty_ns + end.uncertainty_ns
-                )
-                / 1_000_000.0,
-            }
-        )
+        e2e_ns = r.host_ns - q.host_ns
+        scheduler_ns = t.host_ns - q.host_ns
+        post_tx_ns = r.host_ns - t.host_ns
+        ack_ns = a.host_ns - q.host_ns
+        if min(e2e_ns, scheduler_ns, post_tx_ns, ack_ns) < 0:
+            raise Bt06Error(f"{mode}: negative corrected latency component for {msg_id}")
+        if abs(e2e_ns - (scheduler_ns + post_tx_ns)) > 2_000_000:
+            raise Bt06Error(f"{mode}: latency decomposition mismatch for {msg_id}")
+
+        rows.append({
+            "sequence": int(q_event["sequence"]),
+            "message_id": msg_id,
+            "prequeue_jitter_ms": float(q_event.get("prequeue_jitter_seconds", 0.0)) * 1000.0,
+            "t_queue_vm_ns": int(q_event["timestamp_ns"]),
+            "t_tx_vm_ns": int(tx[msg_id]["timestamp_ns"]),
+            "t_rx_vm_ns": int(rx[msg_id]["timestamp_ns"]),
+            "t_ack_vm_ns": int(ack[msg_id]["timestamp_ns"]),
+            "t_queue_host_corrected_ns": q.host_ns,
+            "t_tx_host_corrected_ns": t.host_ns,
+            "t_rx_host_corrected_ns": r.host_ns,
+            "t_ack_host_corrected_ns": a.host_ns,
+            "latency_ms": e2e_ns / 1e6,
+            "queue_to_tx_ms": scheduler_ns / 1e6,
+            "tx_to_rx_ms": post_tx_ns / 1e6,
+            "queue_to_ack_ms": ack_ns / 1e6,
+            "sender_offset_ms": q.offset_ns / 1e6,
+            "receiver_offset_ms": r.offset_ns / 1e6,
+            "estimated_clock_uncertainty_ms": (q.uncertainty_ns + r.uncertainty_ns) / 1e6,
+        })
 
     metadata = {
         "mode": mode,
-        "expected_messages": expected,
-        "source_run": run_meta,
+        "run": run_meta,
         "clock": {
             "client_a_pre_offset_ms": a_pre.offset_vm_minus_host_ns / 1e6,
             "client_a_post_offset_ms": a_post.offset_vm_minus_host_ns / 1e6,
-            "client_a_offset_drift_ms": (
-                a_post.offset_vm_minus_host_ns - a_pre.offset_vm_minus_host_ns
-            )
-            / 1e6,
+            "client_a_offset_drift_ms": (a_post.offset_vm_minus_host_ns - a_pre.offset_vm_minus_host_ns) / 1e6,
             "client_b_pre_offset_ms": b_pre.offset_vm_minus_host_ns / 1e6,
             "client_b_post_offset_ms": b_post.offset_vm_minus_host_ns / 1e6,
-            "client_b_offset_drift_ms": (
-                b_post.offset_vm_minus_host_ns - b_pre.offset_vm_minus_host_ns
-            )
-            / 1e6,
+            "client_b_offset_drift_ms": (b_post.offset_vm_minus_host_ns - b_pre.offset_vm_minus_host_ns) / 1e6,
             "client_a_pre_rtt_ms": a_pre.rtt_ns / 1e6,
             "client_a_post_rtt_ms": a_post.rtt_ns / 1e6,
             "client_b_pre_rtt_ms": b_pre.rtt_ns / 1e6,
@@ -204,42 +215,36 @@ def build_latency_rows(bt05_root: Path, mode: str) -> tuple[list[dict], dict]:
     return rows, metadata
 
 
+def stats(values: list[float], prefix: str = "") -> dict:
+    return {
+        f"{prefix}mean_ms": statistics.fmean(values),
+        f"{prefix}median_ms": statistics.median(values),
+        f"{prefix}p95_ms": percentile(values, 0.95),
+        f"{prefix}stddev_ms": statistics.stdev(values) if len(values) > 1 else 0.0,
+        f"{prefix}min_ms": min(values),
+        f"{prefix}max_ms": max(values),
+    }
+
+
 def summarize(mode: str, rows: list[dict], metadata: dict) -> dict:
-    values = [float(row["latency_ms"]) for row in rows]
-    if not values:
-        raise Bt06Error(f"{mode}: no latency samples")
-
-    stddev = statistics.stdev(values) if len(values) > 1 else 0.0
-    uncertainty_values = [float(row["estimated_clock_uncertainty_ms"]) for row in rows]
-    clock = metadata["clock"]
-
+    primary = [float(r["latency_ms"]) for r in rows]
+    qtx = [float(r["queue_to_tx_ms"]) for r in rows]
+    txrx = [float(r["tx_to_rx_ms"]) for r in rows]
+    uncertainty = [float(r["estimated_clock_uncertainty_ms"]) for r in rows]
     return {
         "mode": mode,
-        "n": len(values),
-        "mean_ms": statistics.fmean(values),
-        "median_ms": statistics.median(values),
-        "p95_ms": percentile(values, 0.95),
-        "stddev_ms": stddev,
-        "min_ms": min(values),
-        "max_ms": max(values),
-        "mean_estimated_clock_uncertainty_ms": statistics.fmean(uncertainty_values),
-        "max_estimated_clock_uncertainty_ms": max(uncertainty_values),
-        **clock,
+        "n": len(rows),
+        **stats(primary),
+        **stats(qtx, "queue_to_tx_"),
+        **stats(txrx, "tx_to_rx_"),
+        "mean_estimated_clock_uncertainty_ms": statistics.fmean(uncertainty),
+        "max_estimated_clock_uncertainty_ms": max(uncertainty),
+        **metadata["clock"],
     }
 
 
 def write_latency_csv(path: Path, rows: list[dict]) -> None:
-    fields = [
-        "message_id",
-        "t_start_vm_ns",
-        "t_end_vm_ns",
-        "t_start_host_corrected_ns",
-        "t_end_host_corrected_ns",
-        "latency_ms",
-        "sender_offset_ms",
-        "receiver_offset_ms",
-        "estimated_clock_uncertainty_ms",
-    ]
+    fields = list(rows[0].keys())
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields)
         writer.writeheader()
@@ -247,195 +252,115 @@ def write_latency_csv(path: Path, rows: list[dict]) -> None:
 
 
 def write_summary_csv(path: Path, summaries: list[dict]) -> None:
-    fields = [
-        "mode",
-        "n",
-        "mean_ms",
-        "median_ms",
-        "p95_ms",
-        "stddev_ms",
-        "min_ms",
-        "max_ms",
-        "mean_estimated_clock_uncertainty_ms",
-        "max_estimated_clock_uncertainty_ms",
-        "client_a_pre_offset_ms",
-        "client_a_post_offset_ms",
-        "client_a_offset_drift_ms",
-        "client_b_pre_offset_ms",
-        "client_b_post_offset_ms",
-        "client_b_offset_drift_ms",
-        "client_a_pre_rtt_ms",
-        "client_a_post_rtt_ms",
-        "client_b_pre_rtt_ms",
-        "client_b_post_rtt_ms",
-    ]
+    fields = list(summaries[0].keys())
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields)
         writer.writeheader()
-        for row in summaries:
-            writer.writerow({field: row[field] for field in fields})
+        writer.writerows(summaries)
 
 
-def write_histogram(path: Path, mode_rows: dict[str, list[dict]]) -> None:
+def write_plots(root: Path, mode_rows: dict[str, list[dict]]) -> None:
     fig, ax = plt.subplots(figsize=(8, 5))
     for mode in MODES:
-        values = [float(row["latency_ms"]) for row in mode_rows[mode]]
-        ax.hist(values, bins=40, alpha=0.5, label=mode.upper())
-    ax.set_xlabel("End-to-end latency [ms]")
+        ax.hist([r["latency_ms"] for r in mode_rows[mode]], bins=40, alpha=0.5, label=mode.upper())
+    ax.set_xlabel("End-to-end latency QUEUE→RX [ms]")
     ax.set_ylabel("Messages")
     ax.set_title("BT-06 latency distribution")
     ax.legend()
     fig.tight_layout()
-    fig.savefig(path, dpi=160)
+    fig.savefig(root / "latency_histogram.png", dpi=160)
     plt.close(fig)
 
-
-def write_ecdf(path: Path, mode_rows: dict[str, list[dict]]) -> None:
     fig, ax = plt.subplots(figsize=(8, 5))
     for mode in MODES:
-        values = sorted(float(row["latency_ms"]) for row in mode_rows[mode])
+        values = sorted(float(r["latency_ms"]) for r in mode_rows[mode])
         n = len(values)
-        y = [(i + 1) / n for i in range(n)]
-        ax.plot(values, y, label=mode.upper())
-    ax.set_xlabel("End-to-end latency [ms]")
+        ax.plot(values, [(i + 1) / n for i in range(n)], label=mode.upper())
+    ax.set_xlabel("End-to-end latency QUEUE→RX [ms]")
     ax.set_ylabel("ECDF")
-    ax.set_title("BT-06 latency ECDF")
     ax.set_ylim(0.0, 1.0)
+    ax.set_title("BT-06 latency ECDF")
     ax.legend()
     fig.tight_layout()
-    fig.savefig(path, dpi=160)
+    fig.savefig(root / "latency_ecdf.png", dpi=160)
     plt.close(fig)
 
-
-def write_boxplot(path: Path, mode_rows: dict[str, list[dict]]) -> None:
     fig, ax = plt.subplots(figsize=(7, 5))
-    data = [
-        [float(row["latency_ms"]) for row in mode_rows["cbr"]],
-        [float(row["latency_ms"]) for row in mode_rows["poisson"]],
-    ]
-    ax.boxplot(data, tick_labels=["CBR", "Poisson"], showfliers=True)
-    ax.set_ylabel("End-to-end latency [ms]")
+    ax.boxplot(
+        [[r["latency_ms"] for r in mode_rows["cbr"]], [r["latency_ms"] for r in mode_rows["poisson"]]],
+        tick_labels=["CBR", "Poisson"],
+        showfliers=True,
+    )
+    ax.set_ylabel("End-to-end latency QUEUE→RX [ms]")
     ax.set_title("BT-06 latency comparison")
     fig.tight_layout()
-    fig.savefig(path, dpi=160)
+    fig.savefig(root / "latency_boxplot.png", dpi=160)
     plt.close(fig)
-
-
-def copy_source_logs(bt05_root: Path, output: Path) -> None:
-    for mode in MODES:
-        for source_name in ("client_a.log", "client_b.log", "clock_calibration.json"):
-            src = bt05_root / mode / source_name
-            if src.exists():
-                shutil.copy2(src, output / f"{mode}_{source_name}")
-
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="BT-06 end-to-end latency analysis using a calibrated BT-05 message series"
-    )
-    parser.add_argument(
-        "--bt05-run",
-        required=True,
-        type=Path,
-        help="Path to one completed BT-05 result root containing cbr/ and poisson/",
-    )
-    parser.add_argument(
-        "--output",
-        type=Path,
-        help="Optional BT-06 output directory; defaults to benchmarks/results/BT-06/<BT05-run-name>",
-    )
-    return parser.parse_args()
 
 
 def main() -> int:
-    args = parse_args()
-    bt05_root = args.bt05_run.resolve()
-    if not bt05_root.exists():
-        raise Bt06Error(f"BT-05 result directory does not exist: {bt05_root}")
-
-    output = (
-        args.output.resolve()
-        if args.output
-        else (DEFAULT_RESULTS_DIR / bt05_root.name).resolve()
-    )
-    output.mkdir(parents=True, exist_ok=True)
-
-    suite = read_json(bt05_root / "suite_run.json")
+    parser = argparse.ArgumentParser(description="Analyze one completed ACK-gated BT-06 run")
+    parser.add_argument("run", type=Path)
+    args = parser.parse_args()
+    root = args.run.resolve()
+    suite = read_json(root / "suite_run.json")
+    if suite.get("series_policy") != "ack-gated":
+        raise Bt06Error("BT-06 run is not marked series_policy=ack-gated")
     if suite.get("result") != "passed":
-        raise Bt06Error("BT-05 source run did not finish with result=passed")
+        raise Bt06Error("BT-06 source run did not finish with result=passed")
     if set(suite.get("completed", [])) != {"cbr", "poisson"}:
-        raise Bt06Error("BT-05 source run must contain completed CBR and Poisson modes")
+        raise Bt06Error("Analysis requires completed CBR and Poisson modes")
 
     mode_rows: dict[str, list[dict]] = {}
-    mode_metadata: dict[str, dict] = {}
+    mode_meta: dict[str, dict] = {}
     summaries: list[dict] = []
+    validation: dict[str, dict] = {}
 
     for mode in MODES:
-        rows, metadata = build_latency_rows(bt05_root, mode)
+        rows, metadata = build_rows(root, mode)
         mode_rows[mode] = rows
-        mode_metadata[mode] = metadata
-        summary = summarize(mode, rows, metadata)
-        summaries.append(summary)
-        write_latency_csv(output / f"latency_{mode}.csv", rows)
+        mode_meta[mode] = metadata
+        summaries.append(summarize(mode, rows, metadata))
+        write_latency_csv(root / f"latency_{mode}.csv", rows)
+        validation[mode] = {
+            "series_policy": "ack-gated",
+            "expected_messages": len(rows),
+            "queue_events": len(rows),
+            "tx_events": len(rows),
+            "rx_events": len(rows),
+            "ack_events": len(rows),
+            "verified_no_overlap": True,
+        }
 
-        max_rtt = max(
-            summary["client_a_pre_rtt_ms"],
-            summary["client_a_post_rtt_ms"],
-            summary["client_b_pre_rtt_ms"],
-            summary["client_b_post_rtt_ms"],
-        )
-        if max_rtt > 100.0:
-            print(
-                f"[!] {mode}: clock-calibration RTT reached {max_rtt:.3f} ms; "
-                "interpret sub-RTT latency differences cautiously",
-                file=sys.stderr,
-            )
+    write_summary_csv(root / "latency_summary.csv", summaries)
+    write_plots(root, mode_rows)
 
-    write_summary_csv(output / "latency_summary.csv", summaries)
-    write_histogram(output / "latency_histogram.png", mode_rows)
-    write_ecdf(output / "latency_ecdf.png", mode_rows)
-    write_boxplot(output / "latency_boxplot.png", mode_rows)
-    copy_source_logs(bt05_root, output)
-
-    result_meta = {
+    result = {
         "created_at": datetime.now().astimezone().isoformat(),
-        "source_bt05_run": str(bt05_root),
-        "source_commit": suite.get("commit"),
-        "source_dirty_worktree": suite.get("dirty_worktree"),
-        "messages": suite.get("messages"),
-        "message_size": suite.get("message_size"),
-        "cbr_interval_ms": suite.get("cbr_interval_ms"),
-        "poisson_lambda": suite.get("poisson_lambda"),
-        "latency_definition": (
-            "QUEUE timestamp on sender -> RX timestamp after receiver decrypt/process/cache; "
-            "VM system_clock values corrected to the host clock using pre/post minimum-RTT "
-            "midpoint calibration with linear offset interpolation"
-        ),
-        "clock_calibration": mode_metadata,
+        "commit": suite.get("commit"),
+        "dirty_worktree": suite.get("dirty_worktree"),
+        "series_policy": "ack-gated",
+        "primary_latency_definition": "QUEUE(sender) -> RX(receiver), corrected to host clock",
+        "queue_to_tx_definition": "QUEUE(sender) -> TX(sender): traffic-shaper scheduling delay",
+        "tx_to_rx_definition": "TX(sender) -> RX(receiver): post-transmission delivery delay",
+        "phase_randomization": suite.get("phase_randomization"),
+        "phase_jitter_seed": suite.get("phase_jitter_seed"),
+        "workload_validation": validation,
+        "clock_calibration": {mode: mode_meta[mode]["clock"] for mode in MODES},
         "result": "passed",
     }
-    (output / "run.json").write_text(
-        json.dumps(result_meta, indent=2) + "\n", encoding="utf-8"
-    )
+    (root / "run.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
 
-    print(f"[+] Wrote {output / 'latency_cbr.csv'}")
-    print(f"[+] Wrote {output / 'latency_poisson.csv'}")
-    print(f"[+] Wrote {output / 'latency_summary.csv'}")
-    print(f"[+] Wrote latency plots under {output}")
-
-    for summary in summaries:
+    print(f"[+] Wrote {root / 'latency_cbr.csv'}")
+    print(f"[+] Wrote {root / 'latency_poisson.csv'}")
+    print(f"[+] Wrote {root / 'latency_summary.csv'}")
+    print(f"[+] Wrote latency plots under {root}")
+    for s in summaries:
         print(
-            f"[+] {summary['mode']}: n={summary['n']}, "
-            f"mean={summary['mean_ms']:.3f} ms, "
-            f"median={summary['median_ms']:.3f} ms, "
-            f"p95={summary['p95_ms']:.3f} ms, "
-            f"stddev={summary['stddev_ms']:.3f} ms, "
-            f"min={summary['min_ms']:.3f} ms, max={summary['max_ms']:.3f} ms"
+            f"[+] {s['mode']}: n={s['n']}, mean={s['mean_ms']:.3f} ms, "
+            f"median={s['median_ms']:.3f} ms, p95={s['p95_ms']:.3f} ms, "
+            f"stddev={s['stddev_ms']:.3f} ms, min={s['min_ms']:.3f} ms, max={s['max_ms']:.3f} ms"
         )
-
-    print("\nBT-06 functional execution: PASS")
-    print("[i] Latency values are experimental results; no maximum latency is a PASS/FAIL gate.")
-    print(f"[i] Results directory: {output}")
     return 0
 
 

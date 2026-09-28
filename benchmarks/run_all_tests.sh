@@ -22,7 +22,7 @@ Options:
 The script runs:
   BT-01 -> BT-02 -> BT-03 -> BT-04 -> BT-05 -> BT-06
 
-BT-06 reuses the BT-05 data set and does not generate network traffic again.
+BT-06 runs an independent ACK-gated latency experiment and does not reuse the loaded BT-05 workload.
 TA-01 and TA-02 are manual acceptance tests and are intentionally not run here.
 EOF
 }
@@ -251,7 +251,7 @@ echo "BT-05_result=${BT05_RUN}" >> "$MANIFEST"
 
 log
 log "========== BT-06 =========="
-run_logged ./benchmarks/BT-06/run.sh --bt05-run "$BT05_RUN"
+run_logged ./benchmarks/BT-06/run.sh
 record_latest "BT-06"
 
 restore_benchmark_sources
@@ -259,5 +259,5 @@ restore_benchmark_sources
 log
 log "========== SUITE COMPLETE =========="
 log "[+] BT-01 through BT-06 completed successfully."
-log "[i] BT-06 reused: $BT05_RUN"
+log "[i] BT-06 used its own ACK-gated latency series."
 log "[i] Manifest: $MANIFEST"

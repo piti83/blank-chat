@@ -70,6 +70,13 @@ PFS_MESSAGE_INTERVAL = 0
 QUEUE_RE = re.compile(r"BT05_EVENT QUEUE timestamp_ns=(\d+) msg_id=([0-9a-fA-F]+)")
 RX_RE = re.compile(r"BT05_EVENT RX timestamp_ns=(\d+) msg_id=([0-9a-fA-F]+)")
 ACK_RE = re.compile(r"BT05_EVENT ACK timestamp_ns=(\d+) msg_id=([0-9a-fA-F]+)")
+MAP_RE = re.compile(
+    r"BT06_EVENT MAP frame_hash=([0-9a-fA-F]+) msg_id=([0-9a-fA-F]+)"
+)
+TX_RE = re.compile(
+    r"BT06_EVENT TX timestamp_ns=(\d+) action=(\d+) bytes=(\d+) "
+    r"frame_hash=([0-9a-fA-F]+)"
+)
 MNEMONIC_RE = re.compile(r"\b(?:[a-z]+-){23}[a-z]+\b")
 ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
 
@@ -109,6 +116,7 @@ class ModeRun:
     server_edge_packets: int = 0
     server_edge_bytes: int = 0
     messages_queued: int = 0
+    messages_transmitted: int = 0
     messages_received: int = 0
     acks_delivered: int = 0
     unique_message_ids: int = 0
@@ -893,7 +901,14 @@ pfs_message_interval = {PFS_MESSAGE_INTERVAL}
 
 
 def assert_client_binary_has_diagnostics(child: pexpect.spawn, vm_name: str) -> None:
-    markers = ("BT05_EVENT QUEUE", "BT05_EVENT RX", "BT05_EVENT ACK", "BT06_EVENT CLOCK")
+    markers = (
+        "BT05_EVENT QUEUE",
+        "BT05_EVENT RX",
+        "BT05_EVENT ACK",
+        "BT06_EVENT MAP",
+        "BT06_EVENT TX",
+        "BT06_EVENT CLOCK",
+    )
     for marker in markers:
         _, rc = console_cmd(
             child,
@@ -1191,6 +1206,49 @@ def diagnostic_events(
     return events
 
 
+def diagnostic_frame_maps(
+    child: pexpect.spawn,
+) -> list[tuple[str, str]]:
+    output, _ = console_cmd(
+        child,
+        f"grep {shlex.quote('BT06_EVENT MAP')} {REMOTE_CLIENT_LOG} 2>/dev/null || true",
+        timeout=120,
+        check=False,
+    )
+
+    events: list[tuple[str, str]] = []
+    for line in strip_ansi(output).splitlines():
+        match = MAP_RE.search(line)
+        if match:
+            events.append((match.group(1).lower(), match.group(2).lower()))
+    return events
+
+
+def diagnostic_tx_events(
+    child: pexpect.spawn,
+) -> list[tuple[int, int, int, str]]:
+    output, _ = console_cmd(
+        child,
+        f"grep {shlex.quote('BT06_EVENT TX')} {REMOTE_CLIENT_LOG} 2>/dev/null || true",
+        timeout=120,
+        check=False,
+    )
+
+    events: list[tuple[int, int, int, str]] = []
+    for line in strip_ansi(output).splitlines():
+        match = TX_RE.search(line)
+        if match:
+            events.append(
+                (
+                    int(match.group(1)),
+                    int(match.group(2)),
+                    int(match.group(3)),
+                    match.group(4).lower(),
+                )
+            )
+    return events
+
+
 def auto_timeout_seconds(
     messages: int,
     mode: str,
@@ -1257,10 +1315,18 @@ def validate_message_identity_sets(
     sender: ClientHandle,
     receiver: ClientHandle,
     expected: int,
-) -> tuple[list[tuple[int, str]], list[tuple[int, str]], list[tuple[int, str]]]:
+) -> tuple[
+    list[tuple[int, str]],
+    list[tuple[int, str, str]],
+    list[tuple[int, str]],
+    list[tuple[int, str]],
+]:
     queued = diagnostic_events(sender.console, "BT05_EVENT QUEUE", QUEUE_RE)
     received = diagnostic_events(receiver.console, "BT05_EVENT RX", RX_RE)
     acked = diagnostic_events(sender.console, "BT05_EVENT ACK", ACK_RE)
+
+    frame_maps = diagnostic_frame_maps(sender.console)
+    tx_events = diagnostic_tx_events(sender.console)
 
     queued_ids = [msg_id for _, msg_id in queued]
     received_ids = [msg_id for _, msg_id in received]
@@ -1272,16 +1338,55 @@ def validate_message_identity_sets(
         raise Bt05Error(f"Expected {expected} received message IDs, got {len(received_ids)}")
     if len(acked_ids) != expected:
         raise Bt05Error(f"Expected {expected} ACKed message IDs, got {len(acked_ids)}")
+    if len(frame_maps) != expected:
+        raise Bt05Error(f"Expected {expected} BT-06 frame mappings, got {len(frame_maps)}")
 
     if len(set(queued_ids)) != expected:
         raise Bt05Error("Queued BT-05 message IDs are not unique")
+
+    frame_hashes = [frame_hash for frame_hash, _ in frame_maps]
+    mapped_ids = [msg_id for _, msg_id in frame_maps]
+
+    if len(set(frame_hashes)) != expected:
+        raise Bt05Error("BT-06 frame hashes are not unique")
+    if len(set(mapped_ids)) != expected:
+        raise Bt05Error("BT-06 mapped message IDs are not unique")
+
+    if set(queued_ids) != set(mapped_ids):
+        raise Bt05Error("BT-06 frame/message mapping differs from queued message-ID set")
     if set(queued_ids) != set(received_ids):
         raise Bt05Error("Received message-ID set differs from queued message-ID set")
     if set(queued_ids) != set(acked_ids):
         raise Bt05Error("ACKed message-ID set differs from queued message-ID set")
 
-    ok("All queued, received and ACKed message-ID sets agree")
-    return queued, received, acked
+    hash_to_msg_id = {frame_hash: msg_id for frame_hash, msg_id in frame_maps}
+
+    transmitted: list[tuple[int, str, str]] = []
+
+    for timestamp_ns, action, _bytes, frame_hash in tx_events:
+        if action != 1:
+            continue
+
+        msg_id = hash_to_msg_id.get(frame_hash)
+        if msg_id is None:
+            continue
+
+        transmitted.append((timestamp_ns, msg_id, frame_hash))
+
+    if len(transmitted) != expected:
+        raise Bt05Error(
+            f"Expected {expected} matched PUSH TX events, got {len(transmitted)}"
+        )
+
+    transmitted_hashes = [frame_hash for _, _, frame_hash in transmitted]
+
+    if len(set(transmitted_hashes)) != expected:
+        raise Bt05Error("A benchmark frame was transmitted more than once")
+    if set(transmitted_hashes) != set(frame_hashes):
+        raise Bt05Error("Transmitted frame set differs from benchmark frame mapping")
+
+    ok("All queued, transmitted, received and ACKed message-ID sets agree")
+    return queued, transmitted, received, acked
 
 
 def pcap_wire_volume(path: Path) -> tuple[int, int]:
@@ -1351,17 +1456,29 @@ def collect_client_log(child: pexpect.spawn, destination: Path) -> None:
 def write_event_snapshot(
     path: Path,
     queued: list[tuple[int, str]],
+    transmitted: list[tuple[int, str, str]],
     received: list[tuple[int, str]],
     acked: list[tuple[int, str]],
 ) -> None:
     payload = {
         "queue": [{"timestamp_ns": ts, "msg_id": msg_id} for ts, msg_id in queued],
+        "tx": [
+            {
+                "timestamp_ns": ts,
+                "msg_id": msg_id,
+                "frame_hash": frame_hash,
+            }
+            for ts, msg_id, frame_hash in transmitted
+        ],
         "rx": [{"timestamp_ns": ts, "msg_id": msg_id} for ts, msg_id in received],
         "ack": [{"timestamp_ns": ts, "msg_id": msg_id} for ts, msg_id in acked],
         "note": (
-            "QUEUE and RX timestamps are retained for BT-06 end-to-end latency analysis. "
-            "They are VM system_clock timestamps and must be corrected with clock_calibration.json. "
-            "BT-05 itself uses message IDs only for delivery/ACK validation."
+            "QUEUE is the application enqueue timestamp. TX is sampled immediately "
+            "before the corresponding serialized frame is submitted to async_write. "
+            "RX is recorded after receiver decrypt/process/cache. BT-06 uses TX -> RX "
+            "as end-to-end latency. QUEUE -> TX is retained separately as local "
+            "queue/scheduler delay. VM system_clock timestamps must be corrected with "
+            "clock_calibration.json."
         ),
     }
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
@@ -1499,9 +1616,18 @@ def run_mode(
         run_meta.messages_received = rx_count
         run_meta.acks_delivered = ack_count
 
-        queued, received, acked = validate_message_identity_sets(client_a, client_b, messages)
+        queued, transmitted, received, acked = validate_message_identity_sets(
+            client_a, client_b, messages
+        )
+        run_meta.messages_transmitted = len(transmitted)
         run_meta.unique_message_ids = len({msg_id for _, msg_id in queued})
-        write_event_snapshot(mode_dir / "message_events.json", queued, received, acked)
+        write_event_snapshot(
+            mode_dir / "message_events.json",
+            queued,
+            transmitted,
+            received,
+            acked,
+        )
 
         run_meta.duration_seconds = time.monotonic() - measurement_started
 
