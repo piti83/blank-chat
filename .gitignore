@@ -68,3 +68,11 @@ compile_commands.json
 .cache/
 
 .env
+
+.chutney/
+
+*.jsonl
+*.pcap
+
+benchmarks/results/**
+.clangd
